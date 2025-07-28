@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import ErrorDialog from '../components/ErrorDialog';
@@ -8,7 +7,6 @@ import { auth, db } from '../firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
 
 const Contact = () => {
-  const { currentUser } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',

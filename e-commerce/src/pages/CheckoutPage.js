@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../contexts/AuthContext'; 
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
 import { auth, db } from '../firebaseConfig';
 import { collection, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 import AuthPromptModal from '../components/AuthPromptModal';
 
 const CheckoutPage = () => {
@@ -19,9 +19,9 @@ const CheckoutPage = () => {
   const [showProfileRedirect, setShowProfileRedirect] = useState(false);
   const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'checkout' });
 
-  const isLoggedIn = () => {
+  const isLoggedIn = useCallback(() => {
     return currentUser && !currentUser.isAnonymous;
-  };
+  }, [currentUser]);
 
   useEffect(() => {
     if (!isLoggedIn()) {
@@ -59,25 +59,24 @@ const CheckoutPage = () => {
       const user = auth.currentUser;
       if (user) {
         try {
-          const checkoutRef = collection(db, 'checkout', user.uid, 'items');
-          const querySnapshot = await getDocs(checkoutRef);
-          const fetchedCart = querySnapshot.docs.map(doc => ({
+          const cartRef = collection(db, 'users', user.uid, 'cart');
+          const cartSnapshot = await getDocs(cartRef);
+          const cartItems = cartSnapshot.docs.map(doc => ({
             id: doc.id,
-            ...doc.data(),
+            ...doc.data()
           }));
-          setCart(fetchedCart);
+          setCart(cartItems);
         } catch (error) {
-          console.error("Error fetching cart items:", error);
+          console.error("Error loading cart:", error);
+          setError("Failed to load cart items.");
         }
-      } else {
-        setError("You need to be logged in to view checkout items.");
       }
     };
 
     loadProfileInfo();
     loadCartFromFirebase();
     setIsLoading(false);
-  }, [fetchBillingAndShippingInfo, currentUser]);
+  }, [fetchBillingAndShippingInfo, currentUser, isLoggedIn]);
 
   const clearCheckoutList = async () => {
     const user = auth.currentUser;

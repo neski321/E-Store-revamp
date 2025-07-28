@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -10,9 +10,9 @@ function Profile() {
   const [message, setMessage] = useState('');
   const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'profile' });
   
-  const isLoggedIn = () => {
+  const isLoggedIn = useCallback(() => {
     return currentUser && !currentUser.isAnonymous;
-  };
+  }, [currentUser]);
 
   // Refs for shipping and billing fields
   const shippingAddressLine1Ref = useRef();
@@ -54,7 +54,7 @@ function Profile() {
     }
 
     loadProfile();
-  }, [currentUser, getProfile]);
+  }, [currentUser, getProfile, isLoggedIn]);
 
   async function handleSubmit(e) {
     e.preventDefault();
