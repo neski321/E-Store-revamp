@@ -31,7 +31,7 @@ DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
 # Development settings
 if DEBUG:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'e-commerce-6zf9.onrender.com', '*.railway.app']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'e-commerce-6zf9.onrender.com', '*.railway.app', 'healthcheck.railway.app']
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -39,7 +39,7 @@ if DEBUG:
         "http://127.0.0.1:3001",
     ]
 else:
-    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*.railway.app').split(',')
+    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*.railway.app,healthcheck.railway.app').split(',')
     CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
 
 
