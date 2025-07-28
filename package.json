@@ -1,0 +1,48 @@
+{
+  "name": "e-commerce-fullstack",
+  "version": "1.0.0",
+  "description": "Full-stack e-commerce application with React frontend and Django backend",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd e-commerce && npm start",
+    "dev:backend": "cd backend && source venv/bin/activate && python manage.py runserver",
+    "dev:backend-only": "cd backend && source venv/bin/activate && python manage.py runserver",
+    "dev:frontend-only": "cd e-commerce && npm start",
+    "install:all": "npm install && cd e-commerce && npm install && cd ../backend && pip install -r requirements.txt",
+    "build": "cd e-commerce && npm run build",
+    "test": "concurrently \"npm run test:frontend\" \"npm run test:backend\"",
+    "test:frontend": "cd e-commerce && npm test",
+    "test:backend": "cd backend && source venv/bin/activate && python manage.py test",
+    "lint": "cd e-commerce && npm run lint",
+    "format": "cd e-commerce && npm run format",
+    "clean": "cd e-commerce && rm -rf node_modules && cd ../backend && rm -rf venv",
+    "setup": "npm run install:all && npm run setup:backend",
+    "setup:backend": "cd backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    "migrate": "cd backend && source venv/bin/activate && python manage.py migrate",
+    "makemigrations": "cd backend && source venv/bin/activate && python manage.py makemigrations",
+    "collectstatic": "cd backend && source venv/bin/activate && python manage.py collectstatic",
+    "shell": "cd backend && source venv/bin/activate && python manage.py shell",
+    "createsuperuser": "cd backend && source venv/bin/activate && python manage.py createsuperuser",
+    "check": "cd backend && source venv/bin/activate && python manage.py check --deploy"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "your-repository-url"
+  },
+  "keywords": [
+    "e-commerce",
+    "react",
+    "django",
+    "firebase",
+    "fullstack"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+} 

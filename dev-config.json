@@ -1,0 +1,23 @@
+{
+  "frontend": {
+    "port": 3000,
+    "proxy": "http://localhost:8000"
+  },
+  "backend": {
+    "port": 8000,
+    "host": "0.0.0.0"
+  },
+  "database": {
+    "name": "ecommerce_db",
+    "user": "postgres",
+    "host": "localhost",
+    "port": 5432
+  },
+  "firebase": {
+    "projectId": "your-firebase-project-id"
+  },
+  "development": {
+    "debug": true,
+    "allowedHosts": ["localhost", "127.0.0.1", "0.0.0.0"]
+  }
+} 
