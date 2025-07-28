@@ -20,7 +20,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from products.views import ProductViewSet, server_status, restricted_view  # Ensure server_status is imported from the correct module
+from products.views import (
+    ProductViewSet, server_status, restricted_view, 
+    pending_reviews, moderate_review
+)
 
 router = DefaultRouter()
 router.register(r'products', ProductViewSet)
@@ -30,4 +33,6 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('server-status/', server_status, name='server_status'),
     path('restricted/', restricted_view),
+    path('api/reviews/pending/', pending_reviews, name='pending_reviews'),
+    path('api/reviews/<int:review_id>/moderate/', moderate_review, name='moderate_review'),
 ]

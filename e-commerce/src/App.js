@@ -19,6 +19,7 @@ import AddProduct from './services/AddProduct';
 import DeleteProduct from './services/DeleteProduct';
 import UpdateProduct from './services/UpdateProduct';
 import CheckoutPage from './pages/CheckoutPage';
+import ReviewModeration from './pages/ReviewModeration';
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
           <Route path="/products/:id" element={<ProductDetail />} />
           <Route path="/category/:category" element={<CategoryList />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/review-moderation" element={<ReviewModeration />} />
         </Route>
       </Routes>
     </div>

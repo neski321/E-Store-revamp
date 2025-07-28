@@ -10,12 +10,18 @@ const AdminPage = () => {
       <div className="bg-gray-900 text-white min-h-screen">
         <div className="container mx-auto py-12 px-4 text-center">
           <h1 className="text-4xl font-bold mb-6">Admin Functions</h1>
-          <div className="flex justify-center">
+          <div className="flex flex-col space-y-6 items-center">
             <Link
               to="/product-crud"
               className="bg-gray-700 hover:bg-gray-600 text-white py-3 px-8 rounded-full text-lg font-semibold shadow-md transition duration-300 ease-in-out"
             >
               Product Control
+            </Link>
+            <Link
+              to="/review-moderation"
+              className="bg-blue-600 hover:bg-blue-500 text-white py-3 px-8 rounded-full text-lg font-semibold shadow-md transition duration-300 ease-in-out"
+            >
+              Review Moderation
             </Link>
           </div>
         </div>
