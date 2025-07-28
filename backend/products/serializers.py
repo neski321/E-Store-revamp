@@ -4,7 +4,18 @@ from .models import Product, Review, Dimension
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
-        fields = ['id', 'rating', 'comment', 'date', 'reviewer_name', 'reviewer_email']
+        fields = [
+            'id', 'rating', 'comment', 'date', 'reviewer_name', 
+            'reviewer_email', 'reviewer_id', 'status', 'helpful_votes', 
+            'total_votes', 'is_verified_purchase', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'helpful_votes', 'total_votes']
+
+class ReviewModerationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = ['id', 'status', 'comment', 'rating', 'reviewer_name', 'date']
+        read_only_fields = ['id', 'comment', 'rating', 'reviewer_name', 'date']
 
 class DimensionSerializer(serializers.ModelSerializer):
     class Meta:

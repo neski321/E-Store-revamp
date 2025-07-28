@@ -8,7 +8,21 @@ function FeaturedProducts({ products }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {products.slice(0, 9).map(product => (
           <div key={product.id} className="border rounded-lg p-4">
-            <img src={product.thumbnail} alt={product.title} className="w-full h-48 object-cover mb-4 rounded" />
+            <img 
+              src={
+                product.thumbnail && 
+                product.thumbnail !== 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+                  ? product.thumbnail
+                  : product.images && product.images.length > 0
+                  ? product.images[0]
+                  : `https://picsum.photos/300/300?random=${product.id}`
+              } 
+              alt={product.title} 
+              className="w-full h-48 object-cover mb-4 rounded"
+              onError={(e) => {
+                e.target.src = `https://picsum.photos/300/300?random=${product.id}`;
+              }}
+            />
             <h2 className="text-xl font-semibold">{product.title}</h2>
             <p className="text-gray-700">{product.description}</p>
             <p className="text-gray-900 font-bold">${product.price}</p>

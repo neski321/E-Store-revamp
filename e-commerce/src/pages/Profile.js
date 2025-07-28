@@ -2,12 +2,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import AuthPromptModal from '../components/AuthPromptModal';
 
 function Profile() {
   const { currentUser, updateProfile, getProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'profile' });
   
+  const isLoggedIn = () => {
+    return currentUser && !currentUser.isAnonymous;
+  };
+
   // Refs for shipping and billing fields
   const shippingAddressLine1Ref = useRef();
   const shippingAddressLine2Ref = useRef();
@@ -21,6 +27,11 @@ function Profile() {
   const billingZipRef = useRef();
 
   useEffect(() => {
+    if (!isLoggedIn()) {
+      setAuthPromptModal({ isOpen: true, actionType: 'profile' });
+      return;
+    }
+
     async function loadProfile() {
       if (currentUser) {
         setLoading(true);
@@ -73,6 +84,14 @@ function Profile() {
   return (
     <>
       <Navbar />
+      
+      {/* Auth Prompt Modal */}
+      <AuthPromptModal
+        isOpen={authPromptModal.isOpen}
+        onClose={() => setAuthPromptModal({ isOpen: false, actionType: 'profile' })}
+        actionType={authPromptModal.actionType}
+      />
+
       <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl w-full space-y-8">
           <h2 className="text-center text-3xl font-extrabold text-gray-900">My Profile</h2>

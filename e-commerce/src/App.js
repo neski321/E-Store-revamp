@@ -3,12 +3,12 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import ProductDetail from './pages/ProductDetail';
 import CategoryList from './pages/CategoryList';
+import AllCategories from './pages/AllCategories';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import PrivateRoute from './components/PrivateRoute';
 import Contact from './pages/Contact';
 import About from './pages/About';
-import ServerStatus from './components/ServerStatus';
 import SearchPage from './pages/SearchPage';
 import FavoritesPage from './pages/FavoritesPage';
 import Profile from './pages/Profile';
@@ -18,6 +18,7 @@ import AddProduct from './services/AddProduct';
 import DeleteProduct from './services/DeleteProduct';
 import UpdateProduct from './services/UpdateProduct';
 import CheckoutPage from './pages/CheckoutPage';
+import ReviewModeration from './pages/ReviewModeration';
 
 function App() {
   return (
@@ -32,7 +33,7 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/about" element={<About />} />
           <Route path="/search" element={<SearchPage />} />
-          <Route path="/server-status" element={<ServerStatus />} />
+          <Route path="/categories" element={<AllCategories />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/product-crud" element={<ProductCRUD />} />
           <Route path="/add-product" element={<AddProduct />} />
@@ -42,6 +43,7 @@ function App() {
           <Route path="/products/:id" element={<ProductDetail />} />
           <Route path="/category/:category" element={<CategoryList />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/review-moderation" element={<ReviewModeration />} />
         </Route>
       </Routes>
     </div>

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { auth, db } from '../firebaseConfig';
-import { collection, addDoc, deleteDoc, doc, getDocs, query, where } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
+import { collection, addDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import AuthPromptModal from './AuthPromptModal';
 
 function Product() {
   const [products, setProducts] = useState([]);
@@ -10,36 +11,23 @@ function Product() {
   const [error, setError] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [filters, setFilters] = useState({
-    category: '',
-    minPrice: '',
-    maxPrice: '',
-    minRating: '',
-    inStock: false,
-    sortBy: 'id',
-    order: 'desc'
-  });
+  const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'favorites' });
   const { currentUser } = useAuth();
 
+  const isLoggedIn = () => {
+    return currentUser && !currentUser.isAnonymous;
+  };
+
   // Memoized fetch function to prevent unnecessary re-renders
-  const fetchProducts = useCallback(async (page = 1, newFilters = null) => {
+  const fetchProducts = useCallback(async (page = 1) => {
     try {
       setLoading(true);
-      const appliedFilters = newFilters || filters;
       
       // Build query parameters
       const params = new URLSearchParams({
         page: page.toString(),
         page_size: '12'
-      });
-
-      // Add filters to query params
-      Object.entries(appliedFilters).forEach(([key, value]) => {
-        if (value && value !== '') {
-          params.append(key, value.toString());
-        }
       });
 
       const response = await fetch(`/api/products/?${params.toString()}`);
@@ -57,7 +45,6 @@ function Product() {
       
       // Handle pagination info
       if (data.count !== undefined) {
-        setTotalPages(Math.ceil(data.count / 12));
         setHasMore(data.next !== null);
       }
       
@@ -67,7 +54,20 @@ function Product() {
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, []);
+
+  const fetchFavorites = useCallback(async () => {
+    if (!currentUser) return;
+    
+    try {
+      const favoritesRef = collection(db, 'users', currentUser.uid, 'favorites');
+      const querySnapshot = await getDocs(favoritesRef);
+      const favoriteIds = querySnapshot.docs.map(doc => doc.data().productId);
+      setFavorites(favoriteIds);
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    }
+  }, [currentUser]);
 
   // Fetch featured products for home page
   const fetchFeaturedProducts = useCallback(async () => {
@@ -93,24 +93,11 @@ function Product() {
     if (currentUser) {
       fetchFavorites();
     }
-  }, [currentUser, fetchFeaturedProducts]);
-
-  const fetchFavorites = async () => {
-    if (!currentUser) return;
-    
-    try {
-      const favoritesRef = collection(db, 'users', currentUser.uid, 'favorites');
-      const querySnapshot = await getDocs(favoritesRef);
-      const favoriteIds = querySnapshot.docs.map(doc => doc.data().productId);
-      setFavorites(favoriteIds);
-    } catch (error) {
-      console.error('Error fetching favorites:', error);
-    }
-  };
+  }, [currentUser, fetchFeaturedProducts, fetchFavorites]);
 
   const toggleFavorite = async (productId) => {
-    if (!currentUser) {
-      alert('Please log in to add favorites');
+    if (!isLoggedIn()) {
+      setAuthPromptModal({ isOpen: true, actionType: 'favorites' });
       return;
     }
 
@@ -163,27 +150,7 @@ function Product() {
     }
   };
 
-  const handleFilterChange = (filterName, value) => {
-    const newFilters = { ...filters, [filterName]: value };
-    setFilters(newFilters);
-    setCurrentPage(1);
-    fetchProducts(1, newFilters);
-  };
 
-  const resetFilters = () => {
-    const defaultFilters = {
-      category: '',
-      minPrice: '',
-      maxPrice: '',
-      minRating: '',
-      inStock: false,
-      sortBy: 'id',
-      order: 'desc'
-    };
-    setFilters(defaultFilters);
-    setCurrentPage(1);
-    fetchProducts(1, defaultFilters);
-  };
 
   if (loading && products.length === 0) {
     return (
@@ -222,7 +189,20 @@ function Product() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Auth Prompt Modal */}
+      <AuthPromptModal
+        isOpen={authPromptModal.isOpen}
+        onClose={() => setAuthPromptModal({ isOpen: false, actionType: 'favorites' })}
+        actionType={authPromptModal.actionType}
+      />
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800">{error}</p>
+        </div>
+      )}
+
       {/* Section Header */}
       <div className="text-center mb-12">
         <h2 className="text-3xl md:text-4xl font-display font-bold text-gray-900 mb-4">
@@ -238,26 +218,59 @@ function Product() {
         {products.map((product) => (
           <div key={product.id} className="group bg-white rounded-2xl shadow-soft hover:shadow-large transition-all duration-300 transform hover:-translate-y-2">
             {/* Product Image */}
-            <div className="relative aspect-w-1 aspect-h-1 bg-gray-100 rounded-t-2xl overflow-hidden">
+            <div className="relative w-full" style={{ paddingBottom: '100%' }}>
               <img
-                src={product.thumbnail || 'https://via.placeholder.com/300x300?text=Product'}
+                src={product.thumbnail || `https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=300&h=300&fit=crop&random=${product.id}`}
                 alt={product.title}
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                className="absolute inset-0 w-full h-full object-cover rounded-t-2xl group-hover:scale-110 transition-transform duration-300"
                 loading="lazy"
+                onError={(e) => {
+                  console.log('Image failed to load:', e.target.src);
+                  const category = product.category?.toLowerCase();
+                  let fallbackUrl = `https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=300&h=300&fit=crop&random=${product.id}`;
+                  
+                  if (category === 'groceries') {
+                    fallbackUrl = `https://images.unsplash.com/photo-1542838132-92c53300491e?w=300&h=300&fit=crop&random=${product.id}`;
+                  } else if (category === 'electronics') {
+                    fallbackUrl = `https://images.unsplash.com/photo-1498049794561-7780e7231661?w=300&h=300&fit=crop&random=${product.id}`;
+                  } else if (category === 'clothing') {
+                    fallbackUrl = `https://images.unsplash.com/photo-1445205170230-053b83016050?w=300&h=300&fit=crop&random=${product.id}`;
+                  }
+                  
+                  e.target.src = fallbackUrl;
+                }}
+                onLoad={(e) => {
+                  console.log('Image loaded successfully:', e.target.src);
+                  console.log('Image dimensions:', e.target.naturalWidth, 'x', e.target.naturalHeight);
+                }}
+                onLoadStart={() => {
+                  console.log('Starting to load image for product:', product.title);
+                  console.log('Image URL:', product.thumbnail || `https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=300&h=300&fit=crop&random=${product.id}`);
+                }}
               />
               
               {/* Favorite Button */}
               <button
                 onClick={() => toggleFavorite(product.id)}
-                className="absolute top-3 right-3 p-2 bg-white/80 backdrop-blur-sm rounded-full shadow-soft hover:bg-white transition-all duration-200"
+                className={`absolute top-3 right-3 p-2 rounded-full transition-all duration-200 ${
+                  favorites.includes(product.id)
+                    ? 'bg-red-500 text-white shadow-lg'
+                    : 'bg-white/80 backdrop-blur-sm text-gray-400 hover:bg-white hover:text-red-500'
+                }`}
+                title={favorites.includes(product.id) ? 'Remove from favorites' : 'Add to favorites'}
               >
-                <svg 
-                  className={`w-5 h-5 ${favorites.includes(product.id) ? 'text-red-500 fill-current' : 'text-gray-400'}`}
-                  fill="none" 
-                  stroke="currentColor" 
+                <svg
+                  className="w-5 h-5"
+                  fill={favorites.includes(product.id) ? 'currentColor' : 'none'}
+                  stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                  />
                 </svg>
               </button>
 

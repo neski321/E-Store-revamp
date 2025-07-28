@@ -6,11 +6,11 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q
+from django.db.models import Q, Avg, Count
 from django.db import models
 from django.core.cache import cache
-from .models import Product
-from .serializers import ProductSerializer, ReviewSerializer, DimensionSerializer
+from .models import Product, Review
+from .serializers import ProductSerializer, ReviewSerializer, ReviewModerationSerializer, DimensionSerializer
 from django.http import JsonResponse
 
 class ProductPagination(PageNumberPagination):
@@ -26,6 +26,20 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Product.objects.select_related().prefetch_related('reviews', 'dimensions')
 
+        # Filter by specific IDs
+        ids_param = self.request.query_params.get('ids', None)
+        if ids_param:
+            try:
+                ids_list = [int(id.strip()) for id in ids_param.split(',') if id.strip()]
+                if ids_list:
+                    queryset = queryset.filter(id__in=ids_list)
+                    # Preserve the order of IDs as provided
+                    preserved = models.Case(*[models.When(pk=pk, then=pos) for pos, pk in enumerate(ids_list)])
+                    queryset = queryset.order_by(preserved)
+                    return queryset
+            except (ValueError, TypeError):
+                pass
+
         # Search by title or other parameters
         search_query = self.request.query_params.get('search', None)
         if search_query:
@@ -37,13 +51,23 @@ class ProductViewSet(viewsets.ModelViewSet):
                     Q(title__icontains=search_query) |
                     Q(description__icontains=search_query) |
                     Q(category__icontains=search_query) |
-                    Q(price__icontains=search_query)
+                    Q(brand__icontains=search_query)
                 )
+
+        # Title filter (specific product title search)
+        title_filter = self.request.query_params.get('title', None)
+        if title_filter:
+            queryset = queryset.filter(title__icontains=title_filter)
 
         # Category filtering
         category = self.request.query_params.get('category', None)
         if category:
             queryset = queryset.filter(category=category)
+
+        # Brand filtering
+        brand = self.request.query_params.get('brand', None)
+        if brand:
+            queryset = queryset.filter(brand__icontains=brand)
 
         # Price range filtering
         min_price = self.request.query_params.get('min_price', None)
@@ -55,19 +79,27 @@ class ProductViewSet(viewsets.ModelViewSet):
 
         # Rating filtering
         min_rating = self.request.query_params.get('min_rating', None)
+        max_rating = self.request.query_params.get('max_rating', None)
         if min_rating:
             queryset = queryset.filter(rating__gte=min_rating)
+        if max_rating:
+            queryset = queryset.filter(rating__lte=max_rating)
 
         # Stock filtering
         in_stock = self.request.query_params.get('in_stock', None)
         if in_stock == 'true':
             queryset = queryset.filter(stock__gt=0)
 
+        # Discount filtering
+        has_discount = self.request.query_params.get('has_discount', None)
+        if has_discount == 'true':
+            queryset = queryset.filter(discount_percentage__gt=0)
+
         # Sorting
         sort_by = self.request.query_params.get('sort', 'id')
         order = self.request.query_params.get('order', 'desc')
         
-        if sort_by in ['price', 'rating', 'title', 'id']:
+        if sort_by in ['price', 'rating', 'title', 'id', 'created_at', 'stock']:
             if order == 'desc':
                 queryset = queryset.order_by(f'-{sort_by}')
             else:
@@ -89,6 +121,12 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(list(categories))
 
     @action(detail=False, methods=['get'])
+    def brands(self, request):
+        """Get all available brands"""
+        brands = Product.objects.values_list('brand', flat=True).distinct()
+        return Response(list(brands))
+
+    @action(detail=False, methods=['get'])
     def stats(self, request):
         """Get product statistics"""
         total_products = Product.objects.count()
@@ -103,14 +141,78 @@ class ProductViewSet(viewsets.ModelViewSet):
             'avg_rating': avg_rating['avg_rating']
         })
 
-def server_status(request):
-    return JsonResponse({'status': 'Server is running fine'})
+    @action(detail=True, methods=['get'])
+    def reviews(self, request, pk=None):
+        """Get reviews for a specific product"""
+        try:
+            product = self.get_object()
+            reviews = product.reviews.filter(status='approved').order_by('-date')
+            
+            # Filter by rating
+            min_rating = request.query_params.get('min_rating', None)
+            if min_rating:
+                reviews = reviews.filter(rating__gte=min_rating)
+            
+            # Sort reviews
+            sort_by = request.query_params.get('sort', 'date')
+            order = request.query_params.get('order', 'desc')
+            
+            if sort_by in ['date', 'rating', 'helpful_votes']:
+                if order == 'desc':
+                    reviews = reviews.order_by(f'-{sort_by}')
+                else:
+                    reviews = reviews.order_by(sort_by)
+            
+            serializer = ReviewSerializer(reviews, many=True)
+            return Response(serializer.data)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['post'])
+    def add_review(self, request, pk=None):
+        """Add a review to a product"""
+        try:
+            product = self.get_object()
+            review_data = request.data.copy()
+            
+            serializer = ReviewSerializer(data=review_data)
+            if serializer.is_valid():
+                # Save the review with the product instance
+                review = serializer.save(product=product)
+                # Update product rating
+                product.update_average_rating()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['post'])
+    def vote_review(self, request, pk=None):
+        """Vote on a review (helpful/not helpful)"""
+        try:
+            product = self.get_object()
+            review_id = request.data.get('review_id')
+            is_helpful = request.data.get('is_helpful', True)
+            
+            try:
+                review = product.reviews.get(id=review_id)
+                if is_helpful:
+                    review.helpful_votes += 1
+                review.total_votes += 1
+                review.save()
+                
+                return Response({
+                    'helpful_votes': review.helpful_votes,
+                    'total_votes': review.total_votes
+                })
+            except Review.DoesNotExist:
+                return Response({'error': 'Review not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
 
 @api_view(['GET'])
 def restricted_view(request):
-    if request.user_role != 'admin':
-        return Response({'error': 'Forbidden'}, status=403)
-    return Response({'message': 'Welcome, admin!'})
+    return JsonResponse({"message": "This is a restricted view"})
 
 @api_view(['POST'])
 def add_product(request):
@@ -143,34 +245,62 @@ def add_product(request):
     else:
         print("Validation Errors:", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
 @api_view(['PUT'])
 def update_product(request, pk):
     try:
         product = Product.objects.get(pk=pk)
     except Product.DoesNotExist:
-        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
     serializer = ProductSerializer(product, data=request.data)
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data)
-    else:
-        # Debug: Print the errors in the console
-        print(serializer.errors)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 @api_view(['PATCH'])
 def update_product_partial(request, pk):
     try:
         product = Product.objects.get(pk=pk)
     except Product.DoesNotExist:
-        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
     # Use partial=True to allow partial updates
     serializer = ProductSerializer(product, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data)
-    else:
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# Review moderation endpoints
+@api_view(['GET'])
+def pending_reviews(request):
+    """Get all pending reviews for moderation"""
+    reviews = Review.objects.filter(status='pending').order_by('-created_at')
+    serializer = ReviewModerationSerializer(reviews, many=True)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+def moderate_review(request, review_id):
+    """Moderate a review (approve/reject)"""
+    try:
+        review = Review.objects.get(id=review_id)
+        new_status = request.data.get('status')
+        
+        if new_status in ['approved', 'rejected']:
+            review.status = new_status
+            review.save()
+            
+            # Update product rating if approved
+            if new_status == 'approved':
+                review.product.update_average_rating()
+            
+            return Response({'message': f'Review {new_status}'})
+        else:
+            return Response({'error': 'Invalid status'}, status=status.HTTP_400_BAD_REQUEST)
+    except Review.DoesNotExist:
+        return Response({'error': 'Review not found'}, status=status.HTTP_404_NOT_FOUND)
+
+def server_status(request):
+    return JsonResponse({"status": "ok"})

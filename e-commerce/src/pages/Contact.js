@@ -1,41 +1,94 @@
 import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import { useAuth } from '../contexts/AuthContext'; // Import the context
-import AlertModal from '../components/AlertModal'; // Assuming you are using the same modal system
+import ErrorDialog from '../components/ErrorDialog';
+import SuccessDialog from '../components/SuccessDialog';
+import { auth, db } from '../firebaseConfig';
+import { collection, addDoc } from 'firebase/firestore';
 
-function Contact() {
-  const { sendContactMessage } = useAuth(); // Grab the function from context
+const Contact = () => {
+  const { currentUser } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    subject: '',
     message: ''
   });
-  const [alertMessage, setAlertMessage] = useState('');
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prevData) => ({ ...prevData, [name]: value }));
-  };
+  const [loading, setLoading] = useState(false);
+  const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+
     try {
-      await sendContactMessage(formData); // Use the context function
-      setAlertMessage('Your message has been sent successfully!');
-      setFormData({ name: '', email: '', message: '' }); // Clear form after success
+      const user = auth.currentUser;
+      if (!user) {
+        setErrorDialog({
+          isOpen: true,
+          title: 'Authentication Required',
+          message: 'Please log in to send a message.',
+          details: ''
+        });
+        setLoading(false);
+        return;
+      }
+
+      const messageData = {
+        ...formData,
+        userId: user.uid,
+        timestamp: new Date(),
+        status: 'unread'
+      };
+
+      await addDoc(collection(db, 'contactMessages', user.uid, 'messages'), messageData);
+      
+      setSuccessDialog({
+        isOpen: true,
+        title: 'Message Sent! 📧',
+        message: 'Thank you for your message. We\'ll get back to you soon!'
+      });
+
+      setFormData({ name: '', email: '', subject: '', message: '' });
     } catch (error) {
-      console.error('Error sending contact message:', error);
-      setAlertMessage('There was an error sending your message. Please try again.');
+      console.error('Error sending message:', error);
+      setErrorDialog({
+        isOpen: true,
+        title: 'Error Sending Message',
+        message: 'Failed to send your message. Please try again.',
+        details: error.message
+      });
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   return (
     <>
       <Navbar />
-      {alertMessage && (
-        <AlertModal message={alertMessage} onClose={() => setAlertMessage('')} />
-      )}
+      <ErrorDialog
+        isOpen={errorDialog.isOpen}
+        onClose={() => setErrorDialog({ ...errorDialog, isOpen: false })}
+        title={errorDialog.title}
+        message={errorDialog.message}
+        details={errorDialog.details}
+      />
+      <SuccessDialog
+        isOpen={successDialog.isOpen}
+        onClose={() => setSuccessDialog({ ...successDialog, isOpen: false })}
+        title={successDialog.title}
+        message={successDialog.message}
+      />
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-6 text-center">Contact Us</h1>
         <form onSubmit={handleSubmit} className="max-w-lg mx-auto">
@@ -46,7 +99,7 @@ function Contact() {
               id="name"
               name="name"
               value={formData.name}
-              onChange={handleChange}
+              onChange={handleInputChange}
               className="w-full px-3 py-2 border rounded"
               required
             />
@@ -58,7 +111,19 @@ function Contact() {
               id="email"
               name="email"
               value={formData.email}
-              onChange={handleChange}
+              onChange={handleInputChange}
+              className="w-full px-3 py-2 border rounded"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label htmlFor="subject" className="block text-gray-700 font-bold mb-2">Subject</label>
+            <input
+              type="text"
+              id="subject"
+              name="subject"
+              value={formData.subject}
+              onChange={handleInputChange}
               className="w-full px-3 py-2 border rounded"
               required
             />
@@ -70,7 +135,7 @@ function Contact() {
               name="message"
               rows="5"
               value={formData.message}
-              onChange={handleChange}
+              onChange={handleInputChange}
               className="w-full px-3 py-2 border rounded"
               required
             ></textarea>
@@ -78,8 +143,9 @@ function Contact() {
           <button
             type="submit"
             className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded"
+            disabled={loading}
           >
-            Send Message
+            {loading ? 'Sending...' : 'Send Message'}
           </button>
         </form>
       </div>

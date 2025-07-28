@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../firebaseConfig';
+import AuthPromptModal from './AuthPromptModal';
 
 function Navbar() {
   const { logout, role } = useAuth();
@@ -10,7 +11,7 @@ function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [cartCount, setCartCount] = useState(0);
+  const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'signup' });
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
@@ -36,19 +37,35 @@ function Navbar() {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
+  const handleCreateAccount = () => {
+    setDropdownOpen(false);
+    setAuthPromptModal({ isOpen: true, actionType: 'signup' });
+  };
+
   const getUserInitial = () => {
-    if (currentUser && currentUser.email) {
-      return currentUser.email.charAt(0).toUpperCase();
-    } else {
-      return 'U';
+    if (currentUser) {
+      if (currentUser.isAnonymous) {
+        return 'G'; // Guest
+      } else if (currentUser.email) {
+        return currentUser.email.charAt(0).toUpperCase();
+      }
     }
+    return 'U';
   };
 
   const getUserDisplayName = () => {
-    if (currentUser && currentUser.email) {
-      return currentUser.email.split('@')[0];
+    if (currentUser) {
+      if (currentUser.isAnonymous) {
+        return 'Guest User';
+      } else if (currentUser.email) {
+        return currentUser.email.split('@')[0];
+      }
     }
     return 'User';
+  };
+
+  const isGuestUser = () => {
+    return currentUser && currentUser.isAnonymous;
   };
 
   const isActive = (path) => {
@@ -56,7 +73,15 @@ function Navbar() {
   };
 
   return (
-    <nav className="bg-white shadow-soft border-b border-gray-100 sticky top-0 z-50">
+    <>
+      {/* Auth Prompt Modal */}
+      <AuthPromptModal
+        isOpen={authPromptModal.isOpen}
+        onClose={() => setAuthPromptModal({ isOpen: false, actionType: 'signup' })}
+        actionType={authPromptModal.actionType}
+      />
+
+      <nav className="bg-white shadow-soft border-b border-gray-100 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -91,6 +116,16 @@ function Navbar() {
                 }`}
               >
                 Search
+              </Link>
+              <Link
+                to="/categories"
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 ${
+                  isActive('/categories') 
+                    ? 'text-primary-600 bg-primary-50' 
+                    : 'text-gray-600 hover:text-primary-600 hover:bg-primary-50'
+                }`}
+              >
+                Categories
               </Link>
               <Link
                 to="/favorites"
@@ -128,13 +163,8 @@ function Navbar() {
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m6 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
                 </svg>
-                {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-accent-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {cartCount}
-                  </span>
-                )}
               </Link>
-            )}
+                )}
 
             {/* User dropdown */}
             {currentUser ? (
@@ -157,21 +187,30 @@ function Navbar() {
                 {dropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-large border border-gray-100 py-1 z-50 animate-fade-in">
                     <div className="px-4 py-2 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">{currentUser.email}</p>
-                      <p className="text-xs text-gray-500 capitalize">{role} account</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {isGuestUser() ? 'Guest User' : currentUser.email}
+                      </p>
+                      <p className="text-xs text-gray-500 capitalize">
+                        {isGuestUser() ? 'guest account' : `${role} account`}
+                      </p>
                     </div>
-                    <Link
-                      to="/profile"
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-200"
-                    >
-                      Profile Settings
-                    </Link>
+                    
+                    {!isGuestUser() && (
+                      <Link
+                        to="/profile"
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                      >
+                        Profile Settings
+                      </Link>
+                    )}
+                    
                     <Link
                       to="/favorites"
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-200"
                     >
                       My Favorites
                     </Link>
+                    
                     {role === 'admin' && (
                       <Link
                         to="/admin"
@@ -180,11 +219,21 @@ function Navbar() {
                         Admin Panel
                       </Link>
                     )}
+                    
+                    {isGuestUser() && (
+                      <button
+                        onClick={handleCreateAccount}
+                        className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                      >
+                        Create Account
+                      </button>
+                    )}
+                    
                     <button
                       onClick={handleLogout}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors duration-200"
                     >
-                      Sign Out
+                      {isGuestUser() ? 'Exit Guest Mode' : 'Sign Out'}
                     </button>
                   </div>
                 )}
@@ -240,6 +289,17 @@ function Navbar() {
               Search
             </Link>
             <Link
+              to="/categories"
+              className={`block px-3 py-2 rounded-md text-base font-medium ${
+                isActive('/categories') 
+                  ? 'text-primary-600 bg-primary-50' 
+                  : 'text-gray-600 hover:text-primary-600 hover:bg-primary-50'
+              }`}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Categories
+            </Link>
+            <Link
               to="/favorites"
               className={`block px-3 py-2 rounded-md text-base font-medium ${
                 isActive('/favorites') 
@@ -250,7 +310,7 @@ function Navbar() {
             >
               Favorites
             </Link>
-            {currentUser && (
+          {currentUser && (
               <Link
                 to="/checkout"
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-primary-600 hover:bg-primary-50"
@@ -275,16 +335,36 @@ function Navbar() {
             {currentUser ? (
               <div className="border-t border-gray-200 pt-4">
                 <div className="px-3 py-2">
-                  <p className="text-sm font-medium text-gray-900">{currentUser.email}</p>
-                  <p className="text-xs text-gray-500 capitalize">{role} account</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {isGuestUser() ? 'Guest User' : currentUser.email}
+                  </p>
+                  <p className="text-xs text-gray-500 capitalize">
+                    {isGuestUser() ? 'guest account' : `${role} account`}
+                  </p>
                 </div>
-                <Link
-                  to="/profile"
-                  className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-primary-600 hover:bg-primary-50"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Profile Settings
-                </Link>
+                
+                {!isGuestUser() && (
+                  <Link
+                    to="/profile"
+                    className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-primary-600 hover:bg-primary-50"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Profile Settings
+                  </Link>
+                )}
+                
+                {isGuestUser() && (
+                  <button
+                    onClick={() => {
+                      handleCreateAccount();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-base font-medium text-blue-600 hover:bg-blue-50"
+                  >
+                    Create Account
+                  </button>
+                )}
+                
                 <button
                   onClick={() => {
                     handleLogout();
@@ -292,7 +372,7 @@ function Navbar() {
                   }}
                   className="w-full text-left px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50"
                 >
-                  Sign Out
+                  {isGuestUser() ? 'Exit Guest Mode' : 'Sign Out'}
                 </button>
               </div>
             ) : (
@@ -306,10 +386,11 @@ function Navbar() {
                 </Link>
               </div>
             )}
-          </div>
         </div>
+      </div>
       )}
     </nav>
+    </>
   );
 }
 

@@ -5,9 +5,10 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { auth, db } from '../firebaseConfig';
 import { collection, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import AuthPromptModal from '../components/AuthPromptModal';
 
 const CheckoutPage = () => {
-  const { fetchBillingAndShippingInfo, placeOrder } = useAuth();
+  const { fetchBillingAndShippingInfo, placeOrder, currentUser } = useAuth();
   const navigate = useNavigate();
   const [billingInfo, setBillingInfo] = useState(null);
   const [shippingInfo, setShippingInfo] = useState(null);
@@ -16,8 +17,19 @@ const CheckoutPage = () => {
   const [orderConfirmed, setOrderConfirmed] = useState(false);
   const [error, setError] = useState('');
   const [showProfileRedirect, setShowProfileRedirect] = useState(false);
+  const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'checkout' });
+
+  const isLoggedIn = () => {
+    return currentUser && !currentUser.isAnonymous;
+  };
 
   useEffect(() => {
+    if (!isLoggedIn()) {
+      setAuthPromptModal({ isOpen: true, actionType: 'checkout' });
+      setIsLoading(false);
+      return;
+    }
+
     const loadProfileInfo = async () => {
       try {
         const profileInfo = await fetchBillingAndShippingInfo();
@@ -65,7 +77,7 @@ const CheckoutPage = () => {
     loadProfileInfo();
     loadCartFromFirebase();
     setIsLoading(false);
-  }, [fetchBillingAndShippingInfo]);
+  }, [fetchBillingAndShippingInfo, currentUser]);
 
   const clearCheckoutList = async () => {
     const user = auth.currentUser;
@@ -193,7 +205,15 @@ const CheckoutPage = () => {
   return (
     <>
       <Navbar />
-      <div className="container mx-auto p-6 bg-gray-100 min-h-screen">
+      
+      {/* Auth Prompt Modal */}
+      <AuthPromptModal
+        isOpen={authPromptModal.isOpen}
+        onClose={() => setAuthPromptModal({ isOpen: false, actionType: 'checkout' })}
+        actionType={authPromptModal.actionType}
+      />
+
+      <div className="container mx-auto px-4 py-8">
         <h2 className="text-4xl font-extrabold mb-10 text-center text-blue-700">Checkout</h2>
 
         {/* Error and Success Messages */}
