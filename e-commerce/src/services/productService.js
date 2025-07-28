@@ -4,50 +4,14 @@ import axios from 'axios';
 // API base URL - use relative URL for Railway deployment
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
-// Helper function to make API calls
-const apiCall = async (endpoint, options = {}) => {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-  
-  return response.json();
-};
-
 // Fetch all products
-export const fetchProducts = async (params = {}) => {
+export const fetchProducts = async () => {
   try {
-    const queryParams = new URLSearchParams();
-    
-    // Add all parameters to query string
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
-        queryParams.append(key, params[key]);
-      }
-    });
-
-    const url = `${API_BASE_URL}/products/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    console.log('Fetching products from:', url);
-    
-    const response = await fetch(url);
-    
+    const response = await fetch(`${API_BASE_URL}/products/`);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
-    const data = await response.json();
-    console.log('Products response:', data);
-    
-    // Handle paginated response
-    return data.results || data;
+    return response.json();
   } catch (error) {
     console.error('Error fetching products:', error);
     throw error;

@@ -9,7 +9,7 @@ import Footer from '../components/Footer';
 import ProductFilters from '../components/ProductFilters';
 
 const SearchPage = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [favorites, setFavorites] = useState([]);

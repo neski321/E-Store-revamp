@@ -169,7 +169,7 @@ function ProductDetail() {
             <img 
               key={index}
               src={image} 
-              alt={`${product.title} - Image ${index + 1}`} 
+                              alt={`${product.title} ${index + 1}`} 
               className="w-full h-64 object-cover rounded-lg shadow-md"
             />
           ))}

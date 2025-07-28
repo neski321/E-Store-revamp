@@ -1,123 +1,78 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { auth, db } from '../firebaseConfig';
 import { collection, getDocs, deleteDoc, query, where } from "firebase/firestore";
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import AuthPromptModal from '../components/AuthPromptModal';
-import { useAuth } from '../contexts/AuthContext';
 
 const FavoritesPage = () => {
-    const [favorites, setFavorites] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [user, setUser] = useState(null);
-    const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'favorites' });
-    const fetchFavoritesRef = useRef();
-    const { currentUser } = useAuth();
+  const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'favorites' });
+  const { currentUser } = useAuth();
 
-    const isLoggedIn = () => {
-        return currentUser && !currentUser.isAnonymous;
-    };
+  const isLoggedIn = useCallback(() => {
+    return currentUser && !currentUser.isAnonymous;
+  }, [currentUser]);
 
-    useEffect(() => {
-        const unsubscribe = auth.onAuthStateChanged(user => {
-            setUser(user);
-            if (!user || !isLoggedIn()) {
-                setAuthPromptModal({ isOpen: true, actionType: 'favorites' });
-                setLoading(false);
-            } else {
-                setError(null);
-                setLoading(true);
-                // Call fetchFavorites after a short delay to avoid the dependency issue
-                setTimeout(() => {
-                    if (fetchFavoritesRef.current) {
-                        fetchFavoritesRef.current();
-                    }
-                }, 100);
-            }
-        });
-        return unsubscribe;
-    }, [currentUser]);
+  const fetchFavorites = useCallback(async () => {
+    if (!isLoggedIn()) {
+      setAuthPromptModal({ isOpen: true, actionType: 'favorites' });
+      setLoading(false);
+      return;
+    }
 
-    const fetchFavorites = useCallback(async () => {
-        if (!user) {
-            console.log("No user logged in");
-            setLoading(false);
-            setError("Please log in to view your favorites");
-            return;
+    try {
+      setLoading(true);
+      const user = auth.currentUser;
+      if (user) {
+        // Get favorite product IDs from Firebase
+        const favoritesRef = collection(db, 'users', user.uid, 'favorites');
+        const favoritesSnapshot = await getDocs(favoritesRef);
+        const favoriteIds = favoritesSnapshot.docs.map(doc => doc.data().productId);
+        
+        if (favoriteIds.length === 0) {
+          setFavorites([]);
+          setLoading(false);
+          return;
         }
 
-        try {
-            setLoading(true);
-            setError(null);
-            
-            console.log("Fetching favorites for user:", user.uid);
-            console.log("User authentication status:", user.email);
-            console.log("User UID:", user.uid);
-            
-            // Get favorite product IDs from Firebase
-            const favoritesRef = collection(db, 'users', user.uid, 'favorites');
-            console.log("Firebase collection path:", `users/${user.uid}/favorites`);
-            
-            const favoritesSnapshot = await getDocs(favoritesRef);
-            const favoriteIds = favoritesSnapshot.docs.map(doc => doc.data().productId);
-            
-            console.log("Found favorite IDs:", favoriteIds);
-            
-            if (favoriteIds.length === 0) {
-                console.log("No favorites found");
-                setFavorites([]);
-                setLoading(false);
-                return;
-            }
-
-            // Fetch product details from the API
-            const apiUrl = `/api/products/?ids=${favoriteIds.join(',')}`;
-            console.log("Fetching from API:", apiUrl);
-            
-            const response = await fetch(apiUrl);
-            console.log("API response status:", response.status);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error("API error:", errorText);
-                throw new Error(`Failed to fetch favorite products: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            console.log("API response data:", data);
-            
-            const products = data.results || data;
-            
-            // Filter to only include products that are still in favorites
-            const favoriteProducts = products.filter(product => favoriteIds.includes(product.id));
-            console.log("Filtered favorite products:", favoriteProducts);
-            
-            setFavorites(favoriteProducts);
-        } catch (error) {
-            console.error("Error fetching favorites:", error);
-            setError(`Failed to load favorites: ${error.message}`);
-        } finally {
-            setLoading(false);
+        // Fetch product details from the API
+        const apiUrl = `/api/products/?ids=${favoriteIds.join(',')}`;
+        const response = await fetch(apiUrl);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch favorite products: ${response.status}`);
         }
-    }, [user]);
+        
+        const data = await response.json();
+        const products = data.results || data;
+        
+        // Filter to only include products that are still in favorites
+        const favoriteProducts = products.filter(product => favoriteIds.includes(product.id));
+        setFavorites(favoriteProducts);
+      }
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+      setError('Failed to load favorites');
+    } finally {
+      setLoading(false);
+    }
+  }, [isLoggedIn]);
 
-    // Store the function in a ref to avoid dependency issues
-    useEffect(() => {
-        fetchFavoritesRef.current = fetchFavorites;
-    }, [fetchFavorites]);
-
-    useEffect(() => {
-        fetchFavorites();
-    }, [fetchFavorites]);
+  useEffect(() => {
+    fetchFavorites();
+  }, [fetchFavorites]);
 
     const removeFromFavorites = async (productId) => {
-        if (!user) return;
+        if (!currentUser) return;
 
         try {
             // Find the favorite document in Firebase
-            const favoritesRef = collection(db, 'users', user.uid, 'favorites');
+            const favoritesRef = collection(db, 'users', currentUser.uid, 'favorites');
             const q = query(favoritesRef, where('productId', '==', productId));
             const querySnapshot = await getDocs(q);
 
