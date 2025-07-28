@@ -31,7 +31,7 @@ DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
 # Development settings
 if DEBUG:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'e-commerce-6zf9.onrender.com']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'e-commerce-6zf9.onrender.com', '*.railway.app']
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -39,7 +39,7 @@ if DEBUG:
         "http://127.0.0.1:3001",
     ]
 else:
-    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'e-commerce-6zf9.onrender.com').split(',')
+    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*.railway.app').split(',')
     CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
 
 
@@ -75,10 +75,24 @@ FIREBASE_PROJECT_ID = os.getenv('FIREBASE_PROJECT_ID')
 
 ROOT_URLCONF = "backend.urls"
 
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/5.0/howto/static-files/
+
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Add React build files to static files
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, '../e-commerce/build/static'),
+]
+
+# Serve React app
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [
+            os.path.join(BASE_DIR, '../e-commerce/build'),  # React build directory
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [

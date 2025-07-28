@@ -1,7 +1,26 @@
 // src/services/productService.js
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+// API base URL - use relative URL for Railway deployment
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+
+// Helper function to make API calls
+const apiCall = async (endpoint, options = {}) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const response = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    ...options,
+  });
+  
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+  
+  return response.json();
+};
 
 // Fetch all products
 export const fetchProducts = async (params = {}) => {
