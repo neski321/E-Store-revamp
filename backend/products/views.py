@@ -26,6 +26,20 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Product.objects.select_related().prefetch_related('reviews', 'dimensions')
 
+        # Filter by specific IDs
+        ids_param = self.request.query_params.get('ids', None)
+        if ids_param:
+            try:
+                ids_list = [int(id.strip()) for id in ids_param.split(',') if id.strip()]
+                if ids_list:
+                    queryset = queryset.filter(id__in=ids_list)
+                    # Preserve the order of IDs as provided
+                    preserved = models.Case(*[models.When(pk=pk, then=pos) for pos, pk in enumerate(ids_list)])
+                    queryset = queryset.order_by(preserved)
+                    return queryset
+            except (ValueError, TypeError):
+                pass
+
         # Search by title or other parameters
         search_query = self.request.query_params.get('search', None)
         if search_query:

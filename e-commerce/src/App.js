@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import ProductDetail from './pages/ProductDetail';
 import CategoryList from './pages/CategoryList';
+import AllCategories from './pages/AllCategories';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import PrivateRoute from './components/PrivateRoute';
@@ -32,6 +33,7 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/about" element={<About />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/categories" element={<AllCategories />} />
           <Route path="/server-status" element={<ServerStatus />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/product-crud" element={<ProductCRUD />} />

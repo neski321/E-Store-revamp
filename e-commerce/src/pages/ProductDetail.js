@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import { auth, db } from '../firebaseConfig';
 import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import AlertModal from '../components/AlertModal';
-
-const API_URL = process.env.REACT_APP_API_URL;
 
 function ProductDetail() {
   const { id } = useParams();
@@ -17,8 +14,14 @@ function ProductDetail() {
 
   useEffect(() => {
     // Fetch product details
-    axios.get(`${API_URL}/products/${id}/`)
-      .then(response => setProduct(response.data))
+    fetch(`/api/products/${id}/`)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => setProduct(data))
       .catch(error => console.error('Error fetching the product:', error));
 
     // Load checkout list
@@ -28,10 +31,17 @@ function ProductDetail() {
   const loadCheckoutList = async () => {
     const user = auth.currentUser;
     if (user) {
-      const checkoutRef = collection(db, 'checkout', user.uid, 'items');
-      const querySnapshot = await getDocs(checkoutRef);
-      const checkoutProducts = querySnapshot.docs.map(doc => doc.data().productId);
-      setCheckoutList(checkoutProducts);
+      try {
+        console.log("Loading checkout list for user:", user.uid);
+        const checkoutRef = collection(db, 'checkout', user.uid, 'items');
+        console.log("Firebase collection path:", `checkout/${user.uid}/items`);
+        const querySnapshot = await getDocs(checkoutRef);
+        const checkoutProducts = querySnapshot.docs.map(doc => doc.data().productId);
+        setCheckoutList(checkoutProducts);
+      } catch (error) {
+        console.error("Error loading checkout list:", error);
+        setCheckoutList([]);
+      }
     }
   };
 
