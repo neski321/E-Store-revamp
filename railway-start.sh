@@ -2,6 +2,9 @@
 
 echo "🚀 Starting Django server on port 3000..."
 
+# Navigate to backend directory
+cd backend
+
 # Set the port to 3000
 export PORT=3000
 
