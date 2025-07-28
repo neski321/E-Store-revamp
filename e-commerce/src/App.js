@@ -9,7 +9,6 @@ import Signup from './pages/Signup';
 import PrivateRoute from './components/PrivateRoute';
 import Contact from './pages/Contact';
 import About from './pages/About';
-import ServerStatus from './components/ServerStatus';
 import SearchPage from './pages/SearchPage';
 import FavoritesPage from './pages/FavoritesPage';
 import Profile from './pages/Profile';
@@ -35,7 +34,6 @@ function App() {
           <Route path="/about" element={<About />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/categories" element={<AllCategories />} />
-          <Route path="/server-status" element={<ServerStatus />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/product-crud" element={<ProductCRUD />} />
           <Route path="/add-product" element={<AddProduct />} />

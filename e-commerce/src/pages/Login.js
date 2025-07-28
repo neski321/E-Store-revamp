@@ -122,8 +122,8 @@ function Login() {
           <div className="w-full max-w-md">
             {/* Store Branding */}
             <div className="text-center mb-8">
-              <h1 className="text-6xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4 animate-pulse">
-                E-store
+              <h1 className="text-8xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4 animate-pulse">
+                E-Store
               </h1>
               <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-purple-600 mx-auto mb-6 rounded-full"></div>
             </div>

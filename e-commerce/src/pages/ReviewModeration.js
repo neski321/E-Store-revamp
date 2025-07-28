@@ -10,15 +10,54 @@ const ReviewModeration = () => {
   const [loading, setLoading] = useState(true);
   const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
-  const { currentUser, userRole } = useAuth();
+  const [serverStatus, setServerStatus] = useState('Checking...');
+  const [checkingServer, setCheckingServer] = useState(false);
+  const [roleLoaded, setRoleLoaded] = useState(false);
+  const { currentUser, role } = useAuth();
+
+  // Debug logging
+  console.log('ReviewModeration - currentUser:', currentUser);
+  console.log('ReviewModeration - role:', role);
 
   const isAdmin = () => {
-    return currentUser && userRole === 'admin';
+    const adminCheck = currentUser && role === 'admin';
+    console.log('ReviewModeration - isAdmin check:', adminCheck, 'currentUser:', !!currentUser, 'role:', role);
+    return adminCheck;
   };
 
+  // Track when role is loaded
   useEffect(() => {
-    fetchPendingReviews();
+    if (role !== '') {
+      setRoleLoaded(true);
+    }
+  }, [role]);
+
+  useEffect(() => {
+    // Wait a bit for role to be loaded
+    const timer = setTimeout(() => {
+      fetchPendingReviews();
+      checkServerStatus();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
   }, []);
+
+  const checkServerStatus = async () => {
+    try {
+      setCheckingServer(true);
+      const response = await fetch('https://e-commerce-6zf9.onrender.com/server-status/');
+      if (response.ok) {
+        const data = await response.json();
+        setServerStatus(data.status);
+      } else {
+        setServerStatus('Error: Unable to fetch server status');
+      }
+    } catch (error) {
+      setServerStatus('Error: Unable to fetch server status');
+    } finally {
+      setCheckingServer(false);
+    }
+  };
 
   const fetchPendingReviews = async () => {
     try {
@@ -122,6 +161,22 @@ const ReviewModeration = () => {
     );
   }
 
+  // Show loading while role is being determined
+  if (!roleLoaded) {
+    return (
+      <>
+        <Navbar />
+        <div className="min-h-screen bg-gray-50 py-8">
+          <div className="container mx-auto px-4 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading admin permissions...</p>
+          </div>
+        </div>
+        <Footer />
+      </>
+    );
+  }
+
   return (
     <>
       <Navbar />
@@ -131,12 +186,51 @@ const ReviewModeration = () => {
           <div className="container mx-auto py-12 px-4 text-center">
             <h1 className="text-4xl font-bold mb-6">Access Denied</h1>
             <p className="text-xl mb-8">You don't have permission to access this page.</p>
+            <p className="text-sm text-gray-400 mb-4">Debug info: Role = {role}, User = {currentUser?.email}</p>
           </div>
         </div>
       ) : (
         <div className="min-h-screen bg-gray-50">
           <div className="container mx-auto px-4 py-8">
             <div className="max-w-4xl mx-auto">
+              {/* Server Status Section */}
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-gray-900">Server Status</h2>
+                  <button
+                    onClick={checkServerStatus}
+                    disabled={checkingServer}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
+                  >
+                    {checkingServer ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Checking...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh Status
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${serverStatus === 'ok' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <span className="text-gray-700 font-medium">
+                    {serverStatus === 'ok' ? 'Server is running normally' : serverStatus}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500 mt-2">
+                  Last checked: {new Date().toLocaleTimeString()}
+                </p>
+              </div>
+
               <div className="bg-white rounded-lg shadow-md p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h1 className="text-2xl font-bold text-gray-900">Review Moderation</h1>
