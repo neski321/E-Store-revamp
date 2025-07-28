@@ -1,7 +1,7 @@
 // src/contexts/AuthContext.js
 import React, { useContext, useState, useEffect } from 'react';
 import { auth, googleProvider, db } from '../firebaseConfig';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, signInWithPopup } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, signInWithPopup, signInAnonymously } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, collection, addDoc } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 
@@ -22,6 +22,7 @@ export function AuthProvider({ children }) {
     await setDoc(doc(db, 'users', user.uid), { 
       email: user.email,
       role,
+      createdAt: Timestamp.now()
     });
     return userCredential;
   }
@@ -29,6 +30,23 @@ export function AuthProvider({ children }) {
   // Login with Email and Password
   function login(email, password) {
     return signInWithEmailAndPassword(auth, email, password);
+  }
+
+  // Guest Login (Anonymous Authentication)
+  async function loginAsGuest() {
+    const userCredential = await signInAnonymously(auth);
+    const user = userCredential.user;
+    
+    // Create a guest user profile in Firestore
+    await setDoc(doc(db, 'users', user.uid), {
+      email: null,
+      role: 'guest',
+      isGuest: true,
+      createdAt: Timestamp.now(),
+      displayName: `Guest_${user.uid.slice(-6)}` // Create a readable guest name
+    });
+    
+    return userCredential;
   }
 
   // Google Sign-In
@@ -98,14 +116,32 @@ export function AuthProvider({ children }) {
     const unsubscribe = auth.onAuthStateChanged(async user => {
       setCurrentUser(user);
       if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          setRole(userDoc.data().role);
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setRole(userData.role || 'user');
+          } else {
+            // If user exists in Firebase Auth but not in Firestore, create a profile
+            if (!user.isAnonymous) {
+              await setDoc(userDocRef, {
+                email: user.email,
+                role: 'user',
+                createdAt: Timestamp.now()
+              });
+              setRole('user');
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching user role:', error);
+          setRole('user');
         }
       } else {
         setRole('');
       }
     });
+
     return unsubscribe;
   }, []);
 
@@ -114,14 +150,19 @@ export function AuthProvider({ children }) {
     role,
     signup,
     login,
+    loginAsGuest,
     googleSignIn,
     logout,
     updateProfile,
     getProfile,
-    fetchBillingAndShippingInfo,  // Direct billing info fetch function
-    placeOrder,        // Direct order placement function
-    sendContactMessage,   // <-- New Function Exposed Here!
+    fetchBillingAndShippingInfo,
+    placeOrder,
+    sendContactMessage
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import ErrorDialog from './ErrorDialog';
 import SuccessDialog from './SuccessDialog';
+import AuthPromptModal from './AuthPromptModal';
 
 const ProductReviews = ({ productId, productTitle }) => {
   const [reviews, setReviews] = useState([]);
@@ -18,7 +19,24 @@ const ProductReviews = ({ productId, productTitle }) => {
   const [minRating, setMinRating] = useState('');
   const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
+  const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'reviews' });
   const { currentUser } = useAuth();
+
+  const isGuestUser = () => {
+    return currentUser && currentUser.isAnonymous;
+  };
+
+  const isLoggedIn = () => {
+    return currentUser && !currentUser.isAnonymous;
+  };
+
+  const handleWriteReviewClick = () => {
+    if (!isLoggedIn()) {
+      setAuthPromptModal({ isOpen: true, actionType: 'reviews' });
+      return;
+    }
+    setShowReviewForm(true);
+  };
 
   useEffect(() => {
     fetchReviews();
@@ -215,10 +233,17 @@ const ProductReviews = ({ productId, productTitle }) => {
         message={successDialog.message}
       />
 
+      {/* Auth Prompt Modal */}
+      <AuthPromptModal
+        isOpen={authPromptModal.isOpen}
+        onClose={() => setAuthPromptModal({ isOpen: false, actionType: 'reviews' })}
+        actionType={authPromptModal.actionType}
+      />
+
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-xl font-semibold text-gray-900">Customer Reviews</h3>
         <button
-          onClick={() => setShowReviewForm(!showReviewForm)}
+          onClick={handleWriteReviewClick}
           className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
         >
           {showReviewForm ? 'Cancel' : 'Write a Review'}
@@ -226,7 +251,7 @@ const ProductReviews = ({ productId, productTitle }) => {
       </div>
 
       {/* Review Form */}
-      {showReviewForm && (
+      {showReviewForm && isLoggedIn() && (
         <div className="mb-8 p-6 border border-gray-200 rounded-lg">
           <h4 className="text-lg font-medium text-gray-900 mb-4">Write Your Review</h4>
           <form onSubmit={handleSubmitReview}>
@@ -262,19 +287,6 @@ const ProductReviews = ({ productId, productTitle }) => {
                 required
               />
             </div>
-
-            {!currentUser && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
-                <input
-                  type="email"
-                  value={newReview.reviewer_email}
-                  onChange={(e) => setNewReview({ ...newReview, reviewer_email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
-            )}
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">Review *</label>

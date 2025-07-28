@@ -4,19 +4,27 @@ import { collection, getDocs, deleteDoc, query, where } from "firebase/firestore
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import AuthPromptModal from '../components/AuthPromptModal';
+import { useAuth } from '../contexts/AuthContext';
 
 const FavoritesPage = () => {
     const [favorites, setFavorites] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [user, setUser] = useState(null);
+    const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'favorites' });
     const fetchFavoritesRef = useRef();
+    const { currentUser } = useAuth();
+
+    const isLoggedIn = () => {
+        return currentUser && !currentUser.isAnonymous;
+    };
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(user => {
             setUser(user);
-            if (!user) {
-                setError("Please log in to view your favorites");
+            if (!user || !isLoggedIn()) {
+                setAuthPromptModal({ isOpen: true, actionType: 'favorites' });
                 setLoading(false);
             } else {
                 setError(null);
@@ -30,7 +38,7 @@ const FavoritesPage = () => {
             }
         });
         return unsubscribe;
-    }, []);
+    }, [currentUser]);
 
     const fetchFavorites = useCallback(async () => {
         if (!user) {
@@ -174,6 +182,14 @@ const FavoritesPage = () => {
     return (
         <>
             <Navbar />
+            
+            {/* Auth Prompt Modal */}
+            <AuthPromptModal
+                isOpen={authPromptModal.isOpen}
+                onClose={() => setAuthPromptModal({ isOpen: false, actionType: 'favorites' })}
+                actionType={authPromptModal.actionType}
+            />
+
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
                 {/* Header */}
                 <div className="text-center mb-12">

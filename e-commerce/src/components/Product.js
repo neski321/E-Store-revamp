@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebaseConfig';
 import { collection, addDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
+import AuthPromptModal from './AuthPromptModal';
 
 function Product() {
   const [products, setProducts] = useState([]);
@@ -11,7 +12,12 @@ function Product() {
   const [favorites, setFavorites] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'favorites' });
   const { currentUser } = useAuth();
+
+  const isLoggedIn = () => {
+    return currentUser && !currentUser.isAnonymous;
+  };
 
   // Memoized fetch function to prevent unnecessary re-renders
   const fetchProducts = useCallback(async (page = 1) => {
@@ -90,8 +96,8 @@ function Product() {
   }, [currentUser, fetchFeaturedProducts, fetchFavorites]);
 
   const toggleFavorite = async (productId) => {
-    if (!currentUser) {
-      alert('Please log in to add favorites');
+    if (!isLoggedIn()) {
+      setAuthPromptModal({ isOpen: true, actionType: 'favorites' });
       return;
     }
 
@@ -183,7 +189,20 @@ function Product() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Auth Prompt Modal */}
+      <AuthPromptModal
+        isOpen={authPromptModal.isOpen}
+        onClose={() => setAuthPromptModal({ isOpen: false, actionType: 'favorites' })}
+        actionType={authPromptModal.actionType}
+      />
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800">{error}</p>
+        </div>
+      )}
+
       {/* Section Header */}
       <div className="text-center mb-12">
         <h2 className="text-3xl md:text-4xl font-display font-bold text-gray-900 mb-4">

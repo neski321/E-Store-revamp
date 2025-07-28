@@ -1,0 +1,32 @@
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection
+    match /users/{userId} {
+      // Allow read/write if user is authenticated (including anonymous)
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow admin access
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+
+      // Orders subcollection for each user
+      match /orders/{orderId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Favorites subcollection for each user
+      match /favorites/{favoriteId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Checkout subcollection for each user
+      match /checkout/{checkoutId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Contact Messages Collection
+    match /contactMessages/{userId}/messages/{messageId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+} 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import ErrorDialog from '../components/ErrorDialog';
@@ -9,6 +10,11 @@ const ReviewModeration = () => {
   const [loading, setLoading] = useState(true);
   const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
+  const { currentUser, userRole } = useAuth();
+
+  const isAdmin = () => {
+    return currentUser && userRole === 'admin';
+  };
 
   useEffect(() => {
     fetchPendingReviews();
@@ -119,86 +125,96 @@ const ReviewModeration = () => {
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">Review Moderation</h1>
-                <div className="text-sm text-gray-600">
-                  {pendingReviews.length} pending review{pendingReviews.length !== 1 ? 's' : ''}
-                </div>
-              </div>
-
-              {/* Error Dialog */}
-              <ErrorDialog
-                isOpen={errorDialog.isOpen}
-                onClose={() => setErrorDialog({ isOpen: false, title: '', message: '', details: '' })}
-                title={errorDialog.title}
-                message={errorDialog.message}
-                details={errorDialog.details}
-              />
-
-              {/* Success Dialog */}
-              <SuccessDialog
-                isOpen={successDialog.isOpen}
-                onClose={() => setSuccessDialog({ isOpen: false, title: '', message: '' })}
-                title={successDialog.title}
-                message={successDialog.message}
-              />
-
-              {pendingReviews.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 mb-4">
-                    <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+      
+      {!isAdmin() ? (
+        <div className="bg-gray-900 text-white min-h-screen">
+          <div className="container mx-auto py-12 px-4 text-center">
+            <h1 className="text-4xl font-bold mb-6">Access Denied</h1>
+            <p className="text-xl mb-8">You don't have permission to access this page.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="min-h-screen bg-gray-50">
+          <div className="container mx-auto px-4 py-8">
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h1 className="text-2xl font-bold text-gray-900">Review Moderation</h1>
+                  <div className="text-sm text-gray-600">
+                    {pendingReviews.length} pending review{pendingReviews.length !== 1 ? 's' : ''}
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Pending Reviews</h3>
-                  <p className="text-gray-600">All reviews have been moderated.</p>
                 </div>
-              ) : (
-                <div className="space-y-6">
-                  {pendingReviews.map((review) => (
-                    <div key={review.id} className="border border-gray-200 rounded-lg p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <div className="flex items-center space-x-2 mb-2">
-                            <div className="flex">
-                              {renderStars(review.rating)}
-                            </div>
-                            <span className="text-sm text-gray-600">({review.rating}/5)</span>
-                          </div>
-                          <h3 className="font-medium text-gray-900">{review.reviewer_name}</h3>
-                          <p className="text-sm text-gray-500">{formatDate(review.date)}</p>
-                        </div>
-                        <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleModerateReview(review.id, 'approved')}
-                            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleModerateReview(review.id, 'rejected')}
-                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                      
-                      <div className="bg-gray-50 p-4 rounded-md">
-                        <p className="text-gray-700">{review.comment}</p>
-                      </div>
+
+                {/* Error Dialog */}
+                <ErrorDialog
+                  isOpen={errorDialog.isOpen}
+                  onClose={() => setErrorDialog({ isOpen: false, title: '', message: '', details: '' })}
+                  title={errorDialog.title}
+                  message={errorDialog.message}
+                  details={errorDialog.details}
+                />
+
+                {/* Success Dialog */}
+                <SuccessDialog
+                  isOpen={successDialog.isOpen}
+                  onClose={() => setSuccessDialog({ isOpen: false, title: '', message: '' })}
+                  title={successDialog.title}
+                  message={successDialog.message}
+                />
+
+                {pendingReviews.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="text-gray-400 mb-4">
+                      <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Pending Reviews</h3>
+                    <p className="text-gray-600">All reviews have been moderated.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {pendingReviews.map((review) => (
+                      <div key={review.id} className="border border-gray-200 rounded-lg p-6">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <div className="flex items-center space-x-2 mb-2">
+                              <div className="flex">
+                                {renderStars(review.rating)}
+                              </div>
+                              <span className="text-sm text-gray-600">({review.rating}/5)</span>
+                            </div>
+                            <h3 className="font-medium text-gray-900">{review.reviewer_name}</h3>
+                            <p className="text-sm text-gray-500">{formatDate(review.date)}</p>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleModerateReview(review.id, 'approved')}
+                              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleModerateReview(review.id, 'rejected')}
+                              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-gray-50 p-4 rounded-md">
+                          <p className="text-gray-700">{review.comment}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
       <Footer />
     </>
   );

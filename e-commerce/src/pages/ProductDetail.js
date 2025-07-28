@@ -5,13 +5,35 @@ import Footer from '../components/Footer';
 import ProductReviews from '../components/ProductReviews';
 import { auth, db } from '../firebaseConfig';
 import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
-import AlertModal from '../components/AlertModal';
+import ErrorDialog from '../components/ErrorDialog';
+import SuccessDialog from '../components/SuccessDialog';
+import AuthPromptModal from '../components/AuthPromptModal';
+import { useAuth } from '../contexts/AuthContext';
 
 function ProductDetail() {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
   const [checkoutList, setCheckoutList] = useState([]);
-  const [alertMessage, setAlertMessage] = useState('');
+  const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
+  const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'checkout' });
+  const { currentUser } = useAuth();
+
+  const isLoggedIn = () => {
+    return currentUser && !currentUser.isAnonymous;
+  };
+
+  const closeErrorDialog = () => {
+    setErrorDialog({ isOpen: false, title: '', message: '', details: '' });
+  };
+
+  const closeSuccessDialog = () => {
+    setSuccessDialog({ isOpen: false, title: '', message: '' });
+  };
+
+  const closeAuthPromptModal = () => {
+    setAuthPromptModal({ isOpen: false, actionType: 'checkout' });
+  };
 
   useEffect(() => {
     // Fetch product details
@@ -23,7 +45,15 @@ function ProductDetail() {
         return response.json();
       })
       .then(data => setProduct(data))
-      .catch(error => console.error('Error fetching the product:', error));
+      .catch(error => {
+        console.error('Error fetching the product:', error);
+        setErrorDialog({
+          isOpen: true,
+          title: 'Error Loading Product',
+          message: 'Failed to load product details. Please try again.',
+          details: error.message
+        });
+      });
 
     // Load checkout list
     loadCheckoutList();
@@ -46,38 +76,54 @@ function ProductDetail() {
     }
   };
 
-  const showAlert = (message) => {
-    setAlertMessage(message);
+  const showAlert = (message, isError = false) => {
+    if (isError) {
+      setErrorDialog({
+        isOpen: true,
+        title: 'Error',
+        message: message,
+        details: ''
+      });
+    } else {
+      setSuccessDialog({
+        isOpen: true,
+        title: 'Success',
+        message: message
+      });
+    }
   };
 
   const addToCheckout = async () => {
-    const user = auth.currentUser;
-  if (user) {
-    try {
-      const checkoutRef = collection(db, 'checkout', user.uid, 'items');
-      
-      // thumbnail image or set a default placeholder
-      const productImage = product.images && Array.isArray(product.images) && product.images.length > 0 
-        ? product.images[0] 
-        : 'https://via.placeholder.com/150';
-
-      await addDoc(checkoutRef, {
-        productId: product.id,
-        name: product.title,
-        price: product.price,
-        images: [productImage], // Ensure this is an array format for Firestore
-        discount: product.discount_percentage,
-        stock: product.stock
-      });
-        setCheckoutList([...checkoutList, product.id]);
-        showAlert('Added to checkout list');
-      } catch (error) {
-        console.error('Error adding to checkout:', error);
-        showAlert('Failed to add to checkout list');
-      }
-    } else {
-      showAlert('You need to be logged in to add items to checkout');
+    if (!isLoggedIn()) {
+      setAuthPromptModal({ isOpen: true, actionType: 'checkout' });
+      return;
     }
+
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        const checkoutRef = collection(db, 'checkout', user.uid, 'items');
+        
+        // thumbnail image or set a default placeholder
+        const productImage = product.images && Array.isArray(product.images) && product.images.length > 0 
+          ? product.images[0] 
+          : 'https://via.placeholder.com/150';
+
+        await addDoc(checkoutRef, {
+          productId: product.id,
+          name: product.title,
+          price: product.price,
+          images: [productImage], // Ensure this is an array format for Firestore
+          discount: product.discount_percentage,
+          stock: product.stock
+        });
+          setCheckoutList([...checkoutList, product.id]);
+          showAlert('Added to checkout list successfully! 🛒');
+        } catch (error) {
+          console.error('Error adding to checkout:', error);
+          showAlert('Failed to add to checkout list. Please try again.', true);
+        }
+      }
   };
 
   const removeFromCheckout = async () => {
@@ -91,11 +137,11 @@ function ProductDetail() {
         if (checkoutItem) {
           await deleteDoc(doc(db, 'checkout', user.uid, 'items', checkoutItem.id));
           setCheckoutList(checkoutList.filter(itemId => itemId !== product.id));
-          showAlert('Removed from checkout list');
+          showAlert('Removed from checkout list successfully! ✅');
         }
       } catch (error) {
         console.error('Error removing from checkout:', error);
-        showAlert('Failed to remove from checkout list');
+        showAlert('Failed to remove from checkout list. Please try again.', true);
       }
     }
   };
@@ -159,10 +205,30 @@ function ProductDetail() {
   return (
     <>
       <Navbar />
+      
+      {/* Auth Prompt Modal */}
+      <AuthPromptModal
+        isOpen={authPromptModal.isOpen}
+        onClose={closeAuthPromptModal}
+        actionType={authPromptModal.actionType}
+      />
+
+      <ErrorDialog
+        isOpen={errorDialog.isOpen}
+        onClose={closeErrorDialog}
+        title={errorDialog.title}
+        message={errorDialog.message}
+        details={errorDialog.details}
+      />
+
+      <SuccessDialog
+        isOpen={successDialog.isOpen}
+        onClose={closeSuccessDialog}
+        title={successDialog.title}
+        message={successDialog.message}
+      />
+
       <div className="container mx-auto px-4 py-8">
-        {alertMessage && (
-          <AlertModal message={alertMessage} onClose={() => setAlertMessage('')} />
-        )}
         
         <div className="max-w-6xl mx-auto">
           {/* Product Header */}
