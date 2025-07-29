@@ -90,7 +90,7 @@ const SearchPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, filters, sortBy, sortOrder]);
+  }, [searchQuery, sortBy, sortOrder]);
 
   const fetchFavorites = useCallback(async () => {
     if (!currentUser) return;
@@ -114,20 +114,40 @@ const SearchPage = () => {
 
   const handleFiltersChange = (newFilters) => {
     setFilters(newFilters);
+    // Reset pagination when filters change
+    setCurrentPage(1);
+    setHasMore(true);
     fetchProducts(1, newFilters, sortBy, sortOrder);
   };
 
   const handleSortChange = (field, order) => {
     setSortBy(field);
     setSortOrder(order);
+    // Reset pagination when sort changes
+    setCurrentPage(1);
+    setHasMore(true);
     fetchProducts(1, filters, field, order);
   };
 
   const handleClearFilters = () => {
-    setFilters({});
+    const clearedFilters = {
+      title: '',
+      minPrice: '',
+      maxPrice: '',
+      minRating: '',
+      maxRating: '',
+      brand: '',
+      category: '',
+      inStock: false,
+      hasDiscount: false
+    };
+    setFilters(clearedFilters);
     setSortBy('id');
     setSortOrder('desc');
-    fetchProducts(1, {}, 'id', 'desc');
+    // Reset pagination when clearing filters
+    setCurrentPage(1);
+    setHasMore(true);
+    fetchProducts(1, clearedFilters, 'id', 'desc');
   };
 
   const toggleFavorite = async (productId) => {
@@ -274,6 +294,16 @@ const SearchPage = () => {
                         <div className="h-4 bg-gray-200 rounded"></div>
                       </div>
                     ))}
+                  </div>
+                ) : loading && products.length > 0 ? (
+                  <div className="text-center py-8">
+                    <div className="inline-flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-lg">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Applying filters...
+                    </div>
                   </div>
                 ) : products.length === 0 ? (
                   <div className="text-center py-12">
