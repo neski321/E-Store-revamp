@@ -28,6 +28,16 @@ def product_list(request):
     if category:
         products = products.filter(category=category)
     
+    # Add title filter
+    title = request.GET.get('title')
+    if title:
+        products = products.filter(title__icontains=title)
+    
+    # Add brand filter
+    brand = request.GET.get('brand')
+    if brand:
+        products = products.filter(brand=brand)
+    
     min_price = request.GET.get('min_price')
     if min_price:
         products = products.filter(price__gte=min_price)
@@ -36,16 +46,52 @@ def product_list(request):
     if max_price:
         products = products.filter(price__lte=max_price)
     
+    # Add rating filters
+    min_rating = request.GET.get('min_rating')
+    if min_rating:
+        products = products.filter(rating__gte=min_rating)
+    
+    max_rating = request.GET.get('max_rating')
+    if max_rating:
+        products = products.filter(rating__lte=max_rating)
+    
+    # Add stock filter
+    in_stock = request.GET.get('in_stock')
+    if in_stock == 'true':
+        products = products.filter(stock__gt=0)
+    
+    # Add discount filter
+    has_discount = request.GET.get('has_discount')
+    if has_discount == 'true':
+        products = products.filter(discount_percentage__gt=0)
+    
     search = request.GET.get('search')
     if search:
         products = products.filter(title__icontains=search)
     
     # Apply ordering
-    sort_by = request.GET.get('sort', 'title')
-    if sort_by in ['price', '-price', 'rating', '-rating', 'created_at', '-created_at']:
-        products = products.order_by(sort_by)
+    sort_by = request.GET.get('sort', 'id')
+    order = request.GET.get('order', 'desc')
+    
+    # Handle sort field mapping
+    if sort_by == 'id':
+        sort_field = 'id'
+    elif sort_by == 'price':
+        sort_field = 'price'
+    elif sort_by == 'rating':
+        sort_field = 'rating'
+    elif sort_by == 'created_at':
+        sort_field = 'created_at'
+    elif sort_by == 'title':
+        sort_field = 'title'
     else:
-        products = products.order_by('title')
+        sort_field = 'id'
+    
+    # Apply order
+    if order == 'desc':
+        sort_field = f'-{sort_field}'
+    
+    products = products.order_by(sort_field)
     
     # Apply pagination
     page = request.GET.get('page', '1')
@@ -91,6 +137,23 @@ def categories(request):
     """Get all available categories"""
     categories = Product.objects.values_list('category', flat=True).distinct()
     return Response(list(categories))
+
+@api_view(['GET'])
+def brands(request):
+    """Get all available brands, optionally filtered by category"""
+    category = request.GET.get('category')
+    
+    if category:
+        # Filter brands by category
+        brands = Product.objects.filter(category=category).values_list('brand', flat=True).distinct()
+    else:
+        # Get all brands
+        brands = Product.objects.values_list('brand', flat=True).distinct()
+    
+    # Filter out None/empty values and sort
+    brands = sorted([brand for brand in brands if brand])
+    
+    return Response(brands)
 
 @api_view(['POST'])
 def add_review(request, product_id):

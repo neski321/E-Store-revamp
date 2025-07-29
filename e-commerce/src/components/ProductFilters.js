@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
   const [filters, setFilters] = useState({
@@ -18,11 +18,32 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [titleDebounce, setTitleDebounce] = useState('');
 
   useEffect(() => {
     fetchCategories();
     fetchBrands();
   }, []);
+
+  // Fetch brands when category changes
+  useEffect(() => {
+    if (filters.category) {
+      fetchBrands(filters.category);
+    } else {
+      fetchBrands();
+    }
+  }, [filters.category]);
+
+  // Debounce title filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (titleDebounce !== filters.title) {
+        handleFilterChange('title', titleDebounce);
+      }
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timer);
+  }, [titleDebounce]);
 
   const fetchCategories = async () => {
     try {
@@ -36,10 +57,18 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
     }
   };
 
-  const fetchBrands = async () => {
+  const fetchBrands = async (category = null) => {
     try {
-      // Brands endpoint not implemented yet, using empty array for now
-      setBrands([]);
+      let url = '/api/brands/';
+      if (category) {
+        url += `?category=${encodeURIComponent(category)}`;
+      }
+      
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        setBrands(data);
+      }
     } catch (error) {
       console.error('Error fetching brands:', error);
     } finally {
@@ -49,8 +78,18 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
 
   const handleFilterChange = (name, value) => {
     const newFilters = { ...filters, [name]: value };
+    
+    // Clear brand when category changes
+    if (name === 'category') {
+      newFilters.brand = '';
+    }
+    
     setFilters(newFilters);
     onFiltersChange(newFilters);
+  };
+
+  const handleTitleChange = (value) => {
+    setTitleDebounce(value);
   };
 
   const handleSortChange = (field, order) => {
@@ -72,6 +111,7 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
       hasDiscount: false
     };
     setFilters(clearedFilters);
+    setTitleDebounce('');
     setSortBy('id');
     setSortOrder('desc');
     onClearFilters();
@@ -106,8 +146,8 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
         <h4 className="text-md font-medium text-gray-700 mb-3">Product Title</h4>
         <input
           type="text"
-          value={filters.title}
-          onChange={(e) => handleFilterChange('title', e.target.value)}
+          value={titleDebounce}
+          onChange={(e) => handleTitleChange(e.target.value)}
           placeholder="Search by product title..."
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
@@ -201,14 +241,20 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
           value={filters.brand}
           onChange={(e) => handleFilterChange('brand', e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          disabled={brands.length === 0}
         >
-          <option value="">All Brands</option>
+          <option value="">
+            {filters.category ? `All Brands in ${filters.category}` : 'All Brands'}
+          </option>
           {brands.map((brand) => (
             <option key={brand} value={brand}>
               {brand}
             </option>
           ))}
         </select>
+        {brands.length === 0 && filters.category && (
+          <p className="text-sm text-gray-500 mt-1">No brands available for this category</p>
+        )}
       </div>
 
       {/* Availability Filters */}
