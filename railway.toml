@@ -2,9 +2,9 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "cd backend && python manage.py runserver 0.0.0.0:$PORT"
+startCommand = "bash railway-start.sh"
 healthcheckPath = "/server-status/"
 healthcheckTimeout = 300
 
 [deploy.buildCommand]
-command = "pip install -r backend/requirements.txt && cd e-commerce && npm install && npm run build && cd ../backend && python manage.py migrate && python manage.py collectstatic --noinput" 
+command = "bash railway-build.sh" 

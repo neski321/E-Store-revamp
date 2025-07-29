@@ -39,7 +39,7 @@ if DEBUG:
         "http://127.0.0.1:3001",
     ]
 else:
-    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*.railway.app,healthcheck.railway.app').split(',')
+    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*.railway.app,healthcheck.railway.app,e-commerce-by-neski.up.railway.app').split(',')
     CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
 
 

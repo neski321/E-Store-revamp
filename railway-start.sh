@@ -1,12 +1,18 @@
 #!/bin/bash
 
-echo "🚀 Starting Django server on port 3000..."
+echo "🚀 Starting Django server..."
 
 # Navigate to backend directory
 cd backend
 
-# Set the port to 3000
-export PORT=3000
+# Use the PORT environment variable that Railway provides
+# If not set, default to 3000
+PORT=${PORT:-3000}
 
-# Start Django server on port 3000
-python manage.py runserver 0.0.0.0:3000 
+echo "📡 Server will run on port: $PORT"
+
+# Install gunicorn if not already installed
+pip install gunicorn
+
+# Start Django server with gunicorn for production
+gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120 
