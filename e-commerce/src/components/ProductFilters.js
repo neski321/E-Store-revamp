@@ -26,7 +26,7 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch('/api/products/categories/');
+      const response = await fetch('/api/categories/');
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -38,11 +38,8 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
 
   const fetchBrands = async () => {
     try {
-      const response = await fetch('/api/products/brands/');
-      if (response.ok) {
-        const data = await response.json();
-        setBrands(data);
-      }
+      // Brands endpoint not implemented yet, using empty array for now
+      setBrands([]);
     } catch (error) {
       console.error('Error fetching brands:', error);
     } finally {

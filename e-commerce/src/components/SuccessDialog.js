@@ -10,7 +10,7 @@ const SuccessDialog = ({ isOpen, onClose, title, message }) => {
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -30,14 +30,16 @@ const SuccessDialog = ({ isOpen, onClose, title, message }) => {
 
         {/* Content */}
         <div className="p-6">
-          <p className="text-gray-700">{message}</p>
+          <p className="text-gray-700">
+            {message}
+          </p>
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end px-6 py-4 border-t border-gray-200">
+        <div className="flex justify-end p-6 border-t border-gray-200">
           <button
             onClick={onClose}
-            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
           >
             OK
           </button>

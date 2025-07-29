@@ -308,7 +308,7 @@ function ProductDetail() {
               </div>
 
               {/* Reviews */}
-              <ProductReviews productId={product.id} productTitle={product.title} />
+              <ProductReviews productId={product.id} productTitle={product.title} reviews={product.reviews || []} />
             </div>
 
             {/* Sidebar */}

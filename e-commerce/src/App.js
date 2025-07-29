@@ -6,6 +6,7 @@ import CategoryList from './pages/CategoryList';
 import AllCategories from './pages/AllCategories';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import PasswordReset from './pages/PasswordReset';
 import PrivateRoute from './components/PrivateRoute';
 import Contact from './pages/Contact';
 import About from './pages/About';
@@ -19,6 +20,7 @@ import DeleteProduct from './services/DeleteProduct';
 import UpdateProduct from './services/UpdateProduct';
 import CheckoutPage from './pages/CheckoutPage';
 import ReviewModeration from './pages/ReviewModeration';
+import OrderHistory from './pages/OrderHistory';
 
 function App() {
   return (
@@ -26,6 +28,10 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/password-reset" element={<PasswordReset />} />
+        <Route path="/category/:category" element={<CategoryList />} />
+        <Route path="/categories" element={<AllCategories />} />
+        <Route path="/products/:id" element={<ProductDetail />} />
         <Route path="/" element={<PrivateRoute />}>
           <Route index element={<Navigate to="/home" />} />
           <Route path="/home" element={<Home />} />
@@ -33,17 +39,15 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/about" element={<About />} />
           <Route path="/search" element={<SearchPage />} />
-          <Route path="/categories" element={<AllCategories />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/product-crud" element={<ProductCRUD />} />
           <Route path="/add-product" element={<AddProduct />} />
           <Route path="/delete-product" element={<DeleteProduct />} />
           <Route path="/update-product" element={<UpdateProduct />} />
           <Route path="/favorites" element={<FavoritesPage />} />
-          <Route path="/products/:id" element={<ProductDetail />} />
-          <Route path="/category/:category" element={<CategoryList />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/review-moderation" element={<ReviewModeration />} />
+          <Route path="/orders" element={<OrderHistory />} />
         </Route>
       </Routes>
     </div>

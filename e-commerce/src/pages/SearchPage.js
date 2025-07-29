@@ -7,6 +7,8 @@ import { collection, addDoc, deleteDoc, getDocs, query, where } from 'firebase/f
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import ProductFilters from '../components/ProductFilters';
+import ErrorDialog from '../components/ErrorDialog';
+import SuccessDialog from '../components/SuccessDialog';
 
 const SearchPage = () => {
   const [searchParams] = useSearchParams();
@@ -15,9 +17,12 @@ const SearchPage = () => {
   const [favorites, setFavorites] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [filters, setFilters] = useState({});
   const [sortBy, setSortBy] = useState('id');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
   const { currentUser } = useAuth();
 
   const searchQuery = searchParams.get('q') || '';
@@ -60,15 +65,23 @@ const SearchPage = () => {
       
       const data = await response.json();
       
+      // Handle paginated response
+      const productsData = data.results || data;
+      
       if (page === 1) {
-        setProducts(data.results || data);
+        setProducts(productsData);
       } else {
-        setProducts(prev => [...prev, ...(data.results || data)]);
+        setProducts(prev => [...prev, ...productsData]);
       }
       
       // Handle pagination info
       if (data.count !== undefined) {
+        setTotalProducts(data.count);
         setHasMore(data.next !== null);
+      } else {
+        // Fallback for non-paginated responses
+        setTotalProducts(productsData.length);
+        setHasMore(false);
       }
       
       setCurrentPage(page);
@@ -144,9 +157,41 @@ const SearchPage = () => {
     }
   };
 
-  const addToCart = (product) => {
-    // This would integrate with your cart system
-    console.log('Adding to cart:', product);
+  const addToCart = async (product) => {
+    if (!currentUser) {
+      setErrorDialog({
+        isOpen: true,
+        title: 'Authentication Required',
+        message: 'Please log in to add items to your cart.',
+        details: ''
+      });
+      return;
+    }
+
+    try {
+      const cartRef = collection(db, 'checkout', currentUser.uid, 'items');
+      await addDoc(cartRef, {
+        productId: product.id,
+        name: product.title,
+        price: product.price,
+        thumbnail: product.thumbnail,
+        quantity: 1,
+        addedAt: new Date()
+      });
+      setSuccessDialog({
+        isOpen: true,
+        title: 'Success',
+        message: 'Product added to cart successfully! 🛒'
+      });
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      setErrorDialog({
+        isOpen: true,
+        title: 'Add to Cart Failed',
+        message: 'Failed to add product to cart. Please try again.',
+        details: error.message
+      });
+    }
   };
 
   const renderStars = (rating) => {
@@ -165,6 +210,24 @@ const SearchPage = () => {
   return (
     <>
       <Navbar />
+      
+      {/* Error Dialog */}
+      <ErrorDialog
+        isOpen={errorDialog.isOpen}
+        onClose={() => setErrorDialog({ isOpen: false, title: '', message: '', details: '' })}
+        title={errorDialog.title}
+        message={errorDialog.message}
+        details={errorDialog.details}
+      />
+
+      {/* Success Dialog */}
+      <SuccessDialog
+        isOpen={successDialog.isOpen}
+        onClose={() => setSuccessDialog({ isOpen: false, title: '', message: '' })}
+        title={successDialog.title}
+        message={successDialog.message}
+      />
+
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="container mx-auto px-4">
           <div className="max-w-7xl mx-auto">
@@ -178,6 +241,15 @@ const SearchPage = () => {
                   Showing results for "{searchQuery}"
                 </p>
               )}
+              <div className="flex items-center justify-between mt-4">
+                <p className="text-sm text-gray-500">
+                  Showing {products.length} of {totalProducts} products
+                  {hasMore && ` (${totalProducts - products.length} more available)`}
+                </p>
+                <p className="text-sm text-gray-500">
+                  Load 12 products at a time
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -340,8 +412,11 @@ const SearchPage = () => {
                           disabled={loading}
                           className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200"
                         >
-                          {loading ? 'Loading...' : 'Load More'}
+                          {loading ? 'Loading...' : `Load More (${currentPage * 12 + 1}-${(currentPage + 1) * 12})`}
                         </button>
+                        <p className="text-sm text-gray-500 mt-2">
+                          Click to load the next 12 products
+                        </p>
                       </div>
                     )}
                   </>

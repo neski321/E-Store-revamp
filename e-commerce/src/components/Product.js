@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebaseConfig';
 import { collection, addDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import AuthPromptModal from './AuthPromptModal';
+import ErrorDialog from './ErrorDialog';
+import SuccessDialog from './SuccessDialog';
 
 function Product() {
   const [products, setProducts] = useState([]);
@@ -13,6 +15,8 @@ function Product() {
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'favorites' });
+  const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
   const { currentUser } = useAuth();
 
   const isLoggedIn = () => {
@@ -73,12 +77,13 @@ function Product() {
   const fetchFeaturedProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/products/featured/');
+      // Use pagination with limit of 8 for featured products
+      const response = await fetch('/api/products/?page=1&page_size=8');
       if (!response.ok) {
         throw new Error('Failed to fetch featured products');
       }
       const data = await response.json();
-      setProducts(data);
+      setProducts(data.results || data);
       setHasMore(false); // Featured products don't need pagination
     } catch (err) {
       setError(err.message);
@@ -123,7 +128,12 @@ function Product() {
 
   const addToCart = async (product) => {
     if (!currentUser) {
-      alert('Please log in to add items to cart');
+      setErrorDialog({
+        isOpen: true,
+        title: 'Authentication Required',
+        message: 'Please log in to add items to your cart.',
+        details: ''
+      });
       return;
     }
 
@@ -131,16 +141,25 @@ function Product() {
       const cartRef = collection(db, 'checkout', currentUser.uid, 'items');
       await addDoc(cartRef, {
         productId: product.id,
-        title: product.title,
+        name: product.title,
         price: product.price,
         thumbnail: product.thumbnail,
         quantity: 1,
         addedAt: new Date()
       });
-      alert('Product added to cart!');
+      setSuccessDialog({
+        isOpen: true,
+        title: 'Success',
+        message: 'Product added to cart successfully! 🛒'
+      });
     } catch (error) {
       console.error('Error adding to cart:', error);
-      alert('Failed to add to cart');
+      setErrorDialog({
+        isOpen: true,
+        title: 'Add to Cart Failed',
+        message: 'Failed to add product to cart. Please try again.',
+        details: error.message
+      });
     }
   };
 
@@ -195,6 +214,23 @@ function Product() {
         isOpen={authPromptModal.isOpen}
         onClose={() => setAuthPromptModal({ isOpen: false, actionType: 'favorites' })}
         actionType={authPromptModal.actionType}
+      />
+
+      {/* Error Dialog */}
+      <ErrorDialog
+        isOpen={errorDialog.isOpen}
+        onClose={() => setErrorDialog({ isOpen: false, title: '', message: '', details: '' })}
+        title={errorDialog.title}
+        message={errorDialog.message}
+        details={errorDialog.details}
+      />
+
+      {/* Success Dialog */}
+      <SuccessDialog
+        isOpen={successDialog.isOpen}
+        onClose={() => setSuccessDialog({ isOpen: false, title: '', message: '' })}
+        title={successDialog.title}
+        message={successDialog.message}
       />
 
       {error && (

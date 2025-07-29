@@ -5,13 +5,28 @@ import axios from 'axios';
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 // Fetch all products
-export const fetchProducts = async () => {
+export const fetchProducts = async (params = {}) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/products/`);
+    const queryParams = new URLSearchParams();
+    
+    // Add all parameters to query string
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+        queryParams.append(key, params[key]);
+      }
+    });
+
+    const url = `${API_BASE_URL}/products/${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+    console.log('Fetching products from:', url);
+    const response = await fetch(url);
+    
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    return response.json();
+    
+    const data = await response.json();
+    console.log('Products response:', data);
+    return data;
   } catch (error) {
     console.error('Error fetching products:', error);
     throw error;
@@ -21,7 +36,7 @@ export const fetchProducts = async () => {
 // Fetch categories from backend
 export const fetchCategories = async () => {
   try {
-    const url = `${API_BASE_URL}/products/categories/`;
+    const url = `${API_BASE_URL}/categories/`;
     console.log('Fetching categories from:', url);
     
     const response = await fetch(url);

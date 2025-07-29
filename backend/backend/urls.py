@@ -24,20 +24,26 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from products.views import (
-    ProductViewSet, server_status, restricted_view, 
-    pending_reviews, moderate_review
+    product_list, product_detail, categories, add_review,
+    create_payment_intent, send_order_confirmation, webhook
 )
 
 router = DefaultRouter()
-router.register(r'products', ProductViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
-    path('server-status/', server_status, name='server_status'),
-    path('restricted/', restricted_view),
-    path('api/reviews/pending/', pending_reviews, name='pending_reviews'),
-    path('api/reviews/<int:review_id>/moderate/', moderate_review, name='moderate_review'),
+    
+    # Product endpoints
+    path('api/products/', product_list, name='product_list'),
+    path('api/products/<int:pk>/', product_detail, name='product_detail'),
+    path('api/categories/', categories, name='categories'),
+    path('api/products/<int:product_id>/reviews/', add_review, name='add_review'),
+    
+    # Payment endpoints
+    path('api/create-payment-intent/', create_payment_intent, name='create_payment_intent'),
+    path('api/send-order-confirmation/', send_order_confirmation, name='send_order_confirmation'),
+    path('api/webhook/', webhook, name='webhook'),
 ]
 
 # Serve static files FIRST (before React catch-all)

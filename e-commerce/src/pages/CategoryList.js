@@ -19,9 +19,25 @@ const CategoryList = () => {
     const loadProducts = async () => {
       try {
         setLoading(true);
+        console.log('Loading products for category:', category);
+        console.log('Category type:', typeof category);
+        console.log('Category value:', category);
+        
+        if (!category) {
+          console.error('Category is undefined or null');
+          setProducts([]);
+          setLoading(false);
+          return;
+        }
+        
         // Use backend category filtering instead of fetching all products
-        const filteredProducts = await fetchProducts({ category: category });
-        setProducts(filteredProducts);
+        const response = await fetchProducts({ category: category });
+        console.log('API response:', response);
+        // Handle both paginated and non-paginated responses
+        const products = response.results || response;
+        console.log('Products array:', products);
+        console.log('Products array length:', products.length);
+        setProducts(products);
       } catch (error) {
         console.error('Error loading products:', error);
         setProducts([]);
