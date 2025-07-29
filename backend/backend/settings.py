@@ -31,7 +31,7 @@ DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
 # Development settings
 if DEBUG:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'e-commerce-6zf9.onrender.com', '*.railway.app', 'healthcheck.railway.app']
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'e-commerce-6zf9.onrender.com', '*.railway.app', 'healthcheck.railway.app', 'e-commerce-by-neski.up.railway.app']
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -39,8 +39,12 @@ if DEBUG:
         "http://127.0.0.1:3001",
     ]
 else:
-    ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*.railway.app,healthcheck.railway.app,e-commerce-by-neski.up.railway.app').split(',')
-    CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+    # Production settings - ensure Railway domain is always included
+    default_hosts = ['*.railway.app', 'healthcheck.railway.app', 'e-commerce-by-neski.up.railway.app']
+    env_hosts = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
+    ALLOWED_HOSTS = list(set(default_hosts + env_hosts))  # Remove duplicates
+    
+    CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if os.getenv('CORS_ALLOWED_ORIGINS') else []
 
 
 # Application definition
