@@ -40,10 +40,10 @@ urlpatterns = [
     path('api/reviews/<int:review_id>/moderate/', moderate_review, name='moderate_review'),
 ]
 
-# Serve React app for all other routes
+# Serve static files FIRST (before React catch-all)
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# Serve React app for all other routes (LAST)
 urlpatterns += [
     re_path(r'^.*', TemplateView.as_view(template_name='index.html')),
 ]
-
-# Serve static files in both development and production
-urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
