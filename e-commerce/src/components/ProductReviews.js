@@ -1,31 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-const ProductReviews = ({ productId }) => {
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
+const ProductReviews = ({ productId, reviews = [] }) => {
+  const [localReviews, setLocalReviews] = useState(reviews);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [submitting, setSubmitting] = useState(false);
   const { currentUser } = useAuth();
 
-  const fetchReviews = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/products/${productId}/reviews/`);
-      if (response.ok) {
-        const data = await response.json();
-        setReviews(data);
-      }
-    } catch (error) {
-      console.error('Error fetching reviews:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [productId]);
-
+  // Update local reviews when props change
   useEffect(() => {
-    fetchReviews();
-  }, [fetchReviews]);
+    setLocalReviews(reviews);
+  }, [reviews]);
 
   const handleSubmitReview = async (e) => {
     e.preventDefault();
@@ -46,7 +31,8 @@ const ProductReviews = ({ productId }) => {
 
       if (response.ok) {
         setNewReview({ rating: 5, comment: '' });
-        fetchReviews(); // Refresh reviews
+        // Refresh the page to get updated reviews
+        window.location.reload();
       } else {
         alert('Failed to submit review');
       }
@@ -71,18 +57,7 @@ const ProductReviews = ({ productId }) => {
     ));
   };
 
-  if (loading) {
-    return (
-      <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-4">Reviews</h3>
-        <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 rounded mb-2"></div>
-          <div className="h-4 bg-gray-200 rounded mb-2"></div>
-          <div className="h-4 bg-gray-200 rounded"></div>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="mt-8">
@@ -143,10 +118,10 @@ const ProductReviews = ({ productId }) => {
 
       {/* Reviews List */}
       <div className="space-y-4">
-        {reviews.length === 0 ? (
+        {localReviews.length === 0 ? (
           <p className="text-gray-500">No reviews yet. Be the first to review this product!</p>
         ) : (
-          reviews.map((review) => (
+          localReviews.map((review) => (
             <div key={review.id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center space-x-2">
@@ -160,7 +135,7 @@ const ProductReviews = ({ productId }) => {
                 </span>
               </div>
               <p className="text-gray-700">{review.comment}</p>
-              <p className="text-sm text-gray-500 mt-2">- {review.user_name}</p>
+              <p className="text-sm text-gray-500 mt-2">- {review.reviewer_name}</p>
             </div>
           ))
         )}

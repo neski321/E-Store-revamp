@@ -1,4 +1,27 @@
-# Getting Started with Create React App
+# E-Commerce React Frontend
+
+This is the React frontend for the E-Commerce application with Stripe payment integration.
+
+## Environment Setup
+
+Before running the application, you need to set up your environment variables. Create a `.env` file in the root directory with the following variables:
+
+```env
+# Firebase Configuration
+REACT_APP_FIREBASE_API_KEY=your_firebase_api_key
+REACT_APP_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+REACT_APP_FIREBASE_PROJECT_ID=your_project_id
+REACT_APP_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+REACT_APP_FIREBASE_APP_ID=your_app_id
+
+# Stripe Configuration
+REACT_APP_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key_here
+```
+
+**Note:** If the Stripe publishable key is not configured, payment functionality will be disabled and you'll see a warning message instead of the payment form.
+
+## Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
