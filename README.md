@@ -1,11 +1,11 @@
 # E-Commerce Full Stack Application
 
-A comprehensive e-commerce platform built with React frontend, Django backend, and Firebase authentication. Features include product management, shopping cart, secure payment processing with Stripe, and advanced user authentication.
+A comprehensive, production-ready e-commerce platform built with React frontend, Django backend, and Firebase authentication. Features include advanced product management, secure payment processing with Stripe, image management with Cloudflare R2, and a complete admin dashboard.
 
 ## 🚀 Features
 
-### ✅ Implemented Features
-- **User Authentication (Enhanced)**
+### ✅ Core Features
+- **Advanced User Authentication**
   - Email/Password registration and login
   - Social login (Google, Facebook, GitHub)
   - Password reset functionality
@@ -13,70 +13,117 @@ A comprehensive e-commerce platform built with React frontend, Django backend, a
   - "Remember me" functionality
   - Guest mode for browsing
   - Account management and profile updates
+  - Secure session management
 
-- **Product Management**
-  - Product listings with search and filtering
-  - Product details with images and descriptions
-  - Category-based browsing
-  - Admin panel for product management
-  - Review system with moderation
+- **Comprehensive Product Management**
+  - Product listings with advanced search and filtering
+  - Product details with multiple images and descriptions
+  - Category-based browsing with dynamic categories
+  - Complete admin panel for product CRUD operations
+  - Advanced review system with moderation
+  - Product image management with Cloudflare R2
+  - Inventory tracking and stock management
+  - Product dimensions and specifications
 
-- **Shopping Experience**
-  - Shopping cart functionality
-  - Wishlist/favorites
-  - Product search and filtering
+- **Enhanced Shopping Experience**
+  - Shopping cart functionality with persistence
+  - Wishlist/favorites system
+  - Advanced product search with smart filtering
   - Responsive design for all devices
+  - Product comparison and reviews
+  - Category-based product discovery
 
-- **Payment Processing (NEW)**
+- **Secure Payment Processing**
   - Stripe integration for secure payments
   - Real-time payment processing
   - Order confirmation emails
   - Payment validation and error handling
   - Order tracking and status updates
+  - Multiple payment methods support
 
-- **Order Management (NEW)**
-  - Complete order lifecycle
+- **Complete Order Management**
+  - Full order lifecycle management
   - Order confirmation and tracking
-  - Email notifications
+  - Automated email notifications
   - Order history for users
-  - Admin order management
+  - Admin order management dashboard
+  - Order status updates and tracking
 
-- **Security & Validation (NEW)**
-  - Enhanced billing/shipping validation
+- **Advanced Admin Features**
+  - Multi-step product creation wizard
+  - Product update with image management
+  - Product deletion with cleanup
+  - Review moderation system
+  - Category management
+  - User management and analytics
+  - Bulk operations support
+
+- **Image Management System**
+  - Cloudflare R2 integration for image storage
+  - Multiple image upload per product
+  - Image deletion with automatic cleanup
+  - Image optimization and CDN delivery
+  - Thumbnail generation
+  - Drag-and-drop upload interface
+
+- **Enhanced Search & Filtering**
+  - Smart product search with auto-complete
+  - Advanced filtering by category, price, rating
+  - Search result optimization
+  - Product selection modals
+  - Search history and suggestions
+
+- **Security & Validation**
+  - Comprehensive input validation
   - Payment security with Stripe
-  - Input validation and sanitization
+  - Data sanitization and protection
   - Error handling and user feedback
+  - Authentication middleware
+  - CORS protection
 
 ## 🛠️ Technology Stack
 
 ### Frontend
-- **React 18** - UI framework
-- **Tailwind CSS** - Styling
-- **Firebase Authentication** - User management
-- **Stripe React** - Payment processing
-- **React Router** - Navigation
+- **React 18.3.1** - Modern UI framework
+- **Tailwind CSS 3.4.4** - Utility-first CSS framework
+- **Firebase 10.12.2** - Authentication & real-time database
+- **Stripe React 3.8.1** - Secure payment processing
+- **React Router 6.23.1** - Client-side routing
+- **Axios 1.7.2** - HTTP client for API calls
 
 ### Backend
-- **Django 5.2** - Web framework
-- **Django REST Framework** - API
-- **PostgreSQL** - Database
-- **Stripe Python** - Payment processing
-- **Firebase Admin** - Authentication integration
+- **Django 5.2.3** - High-level Python web framework
+- **Django REST Framework 3.16.0** - Powerful API framework
+- **PostgreSQL** - Robust relational database
+- **Stripe 12.3.0** - Payment processing integration
+- **Firebase Admin 6.9.0** - Server-side Firebase integration
+- **Pillow 11.0.0** - Image processing library
+- **Boto3 1.35.85** - AWS SDK for Cloudflare R2
 
 ### External Services
-- **Firebase** - Authentication & Firestore
-- **Stripe** - Payment processing
-- **Railway** - Hosting & deployment
+- **Firebase** - Authentication, Firestore, and real-time features
+- **Stripe** - Payment processing and subscription management
+- **Cloudflare R2** - Object storage for images and assets
+- **Railway** - Cloud hosting and deployment platform
+
+### Development Tools
+- **Node.js 16+** - JavaScript runtime
+- **Python 3.8+** - Backend runtime
+- **Gunicorn 23.0.0** - WSGI HTTP server
+- **ESLint** - Code linting and quality
+- **Prettier** - Code formatting
 
 ## 📋 Prerequisites
 
 Before running this application, ensure you have:
 
-- **Node.js** (v16 or higher)
-- **Python** (v3.8 or higher)
-- **PostgreSQL** (or Railway PostgreSQL)
-- **Firebase Project** with Authentication enabled
-- **Stripe Account** for payment processing
+- **Node.js** (v16 or higher) - For React frontend
+- **Python** (v3.8 or higher) - For Django backend
+- **PostgreSQL** (v12 or higher) - Database server
+- **Firebase Project** - Authentication and Firestore
+- **Stripe Account** - Payment processing
+- **Cloudflare Account** - R2 object storage for images
+- **Railway Account** (optional) - For deployment
 
 ## 🔧 Installation & Setup
 
@@ -111,6 +158,7 @@ REACT_APP_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
 REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 REACT_APP_FIREBASE_APP_ID=your_app_id
 REACT_APP_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+REACT_APP_API_URL=http://localhost:8000/api
 ```
 
 #### Backend Environment (.env in backend/)
@@ -130,6 +178,10 @@ FIREBASE_CLIENT_X509_CERT_URL=your_cert_url
 STRIPE_SECRET_KEY=your_stripe_secret_key
 STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 DEFAULT_FROM_EMAIL=noreply@yourstore.com
+CLOUDFLARE_R2_ACCESS_KEY_ID=your_r2_access_key
+CLOUDFLARE_R2_SECRET_ACCESS_KEY=your_r2_secret_key
+CLOUDFLARE_R2_BUCKET_NAME=your_r2_bucket_name
+CLOUDFLARE_R2_ENDPOINT_URL=your_r2_endpoint_url
 ```
 
 ### 5. Database Setup
@@ -141,17 +193,27 @@ python manage.py createsuperuser
 
 ### 6. Firebase Configuration
 
-1. Create a Firebase project
+1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
 2. Enable Authentication with Email/Password, Google, Facebook, and GitHub providers
-3. Download service account key for backend
+3. Download service account key for backend integration
 4. Configure Firebase Security Rules for Firestore
+5. Enable Firestore database
 
 ### 7. Stripe Configuration
 
-1. Create a Stripe account
-2. Get API keys (publishable and secret)
+1. Create a Stripe account at [Stripe Dashboard](https://dashboard.stripe.com/)
+2. Get API keys (publishable and secret) from the API section
 3. Configure webhook endpoint for payment events
 4. Set up payment methods and currencies
+5. Test with Stripe test mode first
+
+### 8. Cloudflare R2 Configuration
+
+1. Create a Cloudflare account at [Cloudflare Dashboard](https://dash.cloudflare.com/)
+2. Set up R2 Object Storage
+3. Create a new R2 bucket for images
+4. Generate API tokens with R2 permissions
+5. Configure CORS settings for your domain
 
 ## 🚀 Running the Application
 
@@ -213,14 +275,51 @@ When running in development mode:
 ## 📱 API Endpoints
 
 ### Products
-- `GET /api/products/` - List products with filtering
-- `GET /api/products/{id}/` - Product details
-- `GET /api/categories/` - Available categories
+- `GET /api/products/` - List products with filtering and pagination
+- `GET /api/products/{id}/` - Get product details
+- `POST /api/products/` - Create new product (Admin only)
+- `PUT /api/products/{id}/` - Update product (Admin only)
+- `PATCH /api/products/{id}/` - Partial update product (Admin only)
+- `DELETE /api/products/{id}/` - Delete product (Admin only)
+- `GET /api/categories/` - Get available categories
+- `POST /api/categories/` - Create new category (Admin only)
 
-### Authentication
+### Image Management
+- `POST /api/products/upload-images/` - Upload product images to Cloudflare R2
+- `DELETE /api/products/delete-image/{filename}/` - Delete specific image
+- `GET /api/products/{id}/images/` - Get product images
+
+### Reviews
+- `GET /api/products/{id}/reviews/` - Get product reviews
+- `POST /api/products/{id}/reviews/` - Create product review
+- `PUT /api/reviews/{id}/` - Update review (Admin only)
+- `DELETE /api/reviews/{id}/` - Delete review (Admin only)
+- `GET /api/reviews/pending/` - Get pending reviews (Admin only)
+- `POST /api/reviews/{id}/moderate/` - Moderate review (Admin only)
+
+### Search & Filtering
+- `GET /api/products/search/` - Advanced product search
+- `GET /api/products/filter/` - Filter products by category, price, rating
+- `GET /api/products/featured/` - Get featured products
+
+### Payment Processing
 - `POST /api/create-payment-intent/` - Create Stripe payment intent
-- `POST /api/send-order-confirmation/` - Send order confirmation email
+- `POST /api/confirm-payment/` - Confirm payment completion
 - `POST /api/webhook/` - Stripe webhook handler
+
+### Order Management
+- `GET /api/orders/` - Get user orders
+- `POST /api/orders/` - Create new order
+- `GET /api/orders/{id}/` - Get order details
+- `POST /api/send-order-confirmation/` - Send order confirmation email
+- `GET /api/orders/admin/` - Get all orders (Admin only)
+
+### User Management
+- `GET /api/user/profile/` - Get user profile
+- `PUT /api/user/profile/` - Update user profile
+- `POST /api/user/favorites/` - Add product to favorites
+- `DELETE /api/user/favorites/{id}/` - Remove product from favorites
+- `GET /api/user/favorites/` - Get user favorites
 
 ## 🛡️ Security Features
 
@@ -246,15 +345,34 @@ Configure your email settings in the backend environment variables.
 1. Connect your GitHub repository to Railway
 2. Set environment variables in Railway dashboard
 3. Deploy automatically on push to main branch
+4. Configure custom domain (optional)
 
 ### Environment Variables for Production
 ```env
 DEBUG=False
-ALLOWED_HOSTS=*.railway.app,healthcheck.railway.app
-CORS_ALLOWED_ORIGINS=https://your-domain.com
+ALLOWED_HOSTS=*.railway.app,healthcheck.railway.app,your-domain.com
+CORS_ALLOWED_ORIGINS=https://your-domain.com,https://your-app.railway.app
 STRIPE_SECRET_KEY=your_production_stripe_key
 STRIPE_WEBHOOK_SECRET=your_production_webhook_secret
+CLOUDFLARE_R2_ACCESS_KEY_ID=your_production_r2_key
+CLOUDFLARE_R2_SECRET_ACCESS_KEY=your_production_r2_secret
+CLOUDFLARE_R2_BUCKET_NAME=your_production_bucket
+CLOUDFLARE_R2_ENDPOINT_URL=your_production_endpoint
+FIREBASE_PROJECT_ID=your_production_firebase_project
+DEFAULT_FROM_EMAIL=noreply@yourdomain.com
 ```
+
+### Deployment Checklist
+- [ ] Set up Railway project
+- [ ] Configure environment variables
+- [ ] Set up PostgreSQL database
+- [ ] Configure Firebase production project
+- [ ] Set up Stripe production account
+- [ ] Configure Cloudflare R2 production bucket
+- [ ] Test all integrations
+- [ ] Set up monitoring and logging
+- [ ] Configure custom domain (optional)
+- [ ] Set up SSL certificates
 
 ## 🔧 Development Scripts
 
@@ -307,14 +425,40 @@ For support and questions:
 
 ## 🔄 Recent Updates
 
-### Version 2.0 - Enhanced Features
-- ✅ **Payment Processing**: Complete Stripe integration
-- ✅ **Order Management**: Full order lifecycle
-- ✅ **Authentication**: Enhanced security features
-- ✅ **Email System**: Automated notifications
-- ✅ **Validation**: Comprehensive input validation
-- ✅ **Error Handling**: Improved user experience
+### Version 2.0 - Major Feature Release
+- ✅ **Payment Processing**: Complete Stripe integration with webhooks
+- ✅ **Order Management**: Full order lifecycle with tracking
+- ✅ **Authentication**: Enhanced security with Firebase
+- ✅ **Email System**: Automated notifications and confirmations
+- ✅ **Validation**: Comprehensive input validation system
+- ✅ **Error Handling**: Improved user experience and feedback
+
+### Version 2.1 - Admin & Image Management
+- ✅ **Admin Dashboard**: Complete product management interface
+- ✅ **Image Management**: Cloudflare R2 integration for image storage
+- ✅ **Product CRUD**: Multi-step wizards for product operations
+- ✅ **Review Moderation**: Admin review approval system
+- ✅ **Search Improvements**: Smart search with product selection
+- ✅ **Category Management**: Dynamic category creation and management
+
+### Version 2.2 - Enhanced User Experience
+- ✅ **Advanced Search**: Smart filtering and product discovery
+- ✅ **Image Optimization**: CDN delivery and automatic cleanup
+- ✅ **Responsive Design**: Mobile-first approach
+- ✅ **Performance**: Optimized loading and caching
+- ✅ **Security**: Enhanced authentication and data protection
+- ✅ **Documentation**: Comprehensive setup and deployment guides
+
+### Key Improvements in Latest Version
+- **Multi-step Product Creation**: Intuitive wizard for adding products
+- **Image Management**: Upload, delete, and manage product images
+- **Smart Search**: Advanced search with auto-complete and filtering
+- **Review System**: Complete review management with moderation
+- **Admin Interface**: Professional admin dashboard for all operations
+- **Cloudflare Integration**: Fast image delivery and storage
+- **Enhanced Validation**: Real-time form validation and error handling
+- **Mobile Optimization**: Fully responsive design for all devices
 
 ---
 
-**Note**: This is a production-ready e-commerce application with all essential features implemented. Make sure to configure all environment variables and external services before deployment.
+**Note**: This is a production-ready e-commerce application with all essential features implemented. The application includes advanced admin features, image management, and comprehensive user experience improvements. Make sure to configure all environment variables and external services before deployment.
