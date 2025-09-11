@@ -8,7 +8,7 @@ import Footer from '../components/Footer';
 import SuccessDialog from '../components/SuccessDialog';
 import ErrorDialog from '../components/ErrorDialog';
 
-const API_URL = process.env.REACT_APP_API_URL || '';
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 const DeleteProduct = () => {
   const { currentUser, role } = useAuth();
@@ -78,10 +78,13 @@ const DeleteProduct = () => {
   const handleSearchProduct = async (e) => {
     e.preventDefault();
     try {
+      console.log('DeleteProduct - Searching for product:', { searchType, searchId, searchTitle, API_URL });
       let response;
   
       if (searchType === 'id') {
-        response = await axios.get(`${API_URL}/products/${searchId}/`);
+        const searchUrl = `${API_URL}/products/${searchId}/`;
+        console.log('DeleteProduct - Searching by ID:', searchUrl);
+        response = await axios.get(searchUrl);
         if (response.data) {
           setEditingProduct(response.data);
           setProductId(response.data.id);
@@ -91,12 +94,13 @@ const DeleteProduct = () => {
           setEditingProduct(null);
         }
       } else if (searchType === 'title') {
-        response = await axios.get(`${API_URL}/products/`, {
-          params: {
-            search: searchTitle,
-            page_size: 10 // Limit results for better performance
-          },
-        });
+        const searchUrl = `${API_URL}/products/`;
+        const searchParams = {
+          search: searchTitle,
+          page_size: 10 // Limit results for better performance
+        };
+        console.log('DeleteProduct - Searching by title:', searchUrl, searchParams);
+        response = await axios.get(searchUrl, { params: searchParams });
         
         if (response.data && response.data.results && response.data.results.length > 0) {
           // If multiple results, show selection modal
