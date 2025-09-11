@@ -446,6 +446,25 @@ const UpdateProduct = () => {
     });
   };
 
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    // Only allow form submission on step 4 when Update Product button is explicitly clicked
+    if (currentStep === 4) {
+      handleUpdateProduct(e);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    // Prevent Enter key from submitting form on steps 1-3
+    if (e.key === 'Enter' && currentStep < 4) {
+      e.preventDefault();
+      // Instead, move to next step if validation passes
+      if (validateStep(currentStep)) {
+        nextStep();
+      }
+    }
+  };
+
   const handleUpdateProduct = async (e) => {
     e.preventDefault();
     
@@ -1013,7 +1032,7 @@ const UpdateProduct = () => {
 
               {/* Form */}
               <div className="p-8">
-                <form onSubmit={handleUpdateProduct}>
+                <form onSubmit={handleFormSubmit} onKeyDown={handleKeyDown}>
                   {/* Validation Summary */}
                   {Object.keys(errors).length > 0 && (
                     <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -1051,7 +1070,8 @@ const UpdateProduct = () => {
                       </button>
                     ) : (
                       <button
-                        type="submit"
+                        type="button"
+                        onClick={handleUpdateProduct}
                         disabled={submitting}
                         className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
