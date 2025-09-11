@@ -544,10 +544,10 @@ def upload_single_image(request):
             return Response({'error': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Validate image size (5MB limit)
-        max_size = 5 * 1024 * 1024  # 5MB in bytes
+        max_size = 10 * 1024 * 1024  # 5MB in bytes
         if image.size > max_size:
             return Response({
-                'error': 'Image is too large. Maximum size is 5MB.'
+                'error': 'Image is too large. Maximum size is 10MB.'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Validate file type
