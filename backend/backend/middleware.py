@@ -1,6 +1,6 @@
 # backend/middleware.py
 from django.http import JsonResponse
-from backend.firebase import db
+from backend.firebase import db, auth
 
 def check_user_role(get_response):
     def middleware(request):
