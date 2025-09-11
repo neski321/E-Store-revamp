@@ -318,7 +318,8 @@ const AddProduct = () => {
   };
 
   const showValidationErrors = (step) => {
-    const stepErrors = validateStep(step);
+    // Validate the step to trigger error state updates
+    validateStep(step);
     const errorCount = Object.keys(errors).length;
     
     if (errorCount > 0) {
@@ -380,6 +381,25 @@ const AddProduct = () => {
     setProductImages(images);
     if (errors.images) {
       setErrors(prev => ({ ...prev, images: '' }));
+    }
+  };
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    // Only allow form submission on step 4 when Add Product button is explicitly clicked
+    if (currentStep === 4) {
+      handleAddProduct(e);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    // Prevent Enter key from submitting form on steps 1-3
+    if (e.key === 'Enter' && currentStep < 4) {
+      e.preventDefault();
+      // Instead, move to next step if validation passes
+      if (validateStep(currentStep)) {
+        nextStep();
+      }
     }
   };
 
@@ -848,6 +868,7 @@ const AddProduct = () => {
             <ProductImageUpload
               onImagesSelected={handleImagesSelected}
               initialImages={productImages}
+              productTitle={newProduct.title}
             />
             
             {errors.images && (
@@ -988,7 +1009,7 @@ const AddProduct = () => {
 
           {/* Form */}
           <div className="bg-white rounded-lg shadow-lg p-8">
-            <form onSubmit={handleAddProduct}>
+            <form onSubmit={handleFormSubmit} onKeyDown={handleKeyDown}>
               {/* Validation Summary */}
               {Object.keys(errors).length > 0 && (
                 <ValidationSummary 
@@ -1024,7 +1045,8 @@ const AddProduct = () => {
                   </button>
                 ) : (
                   <button
-                    type="submit"
+                    type="button"
+                    onClick={handleAddProduct}
                     disabled={submitting}
                     className="px-8 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
                   >

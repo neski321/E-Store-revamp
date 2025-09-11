@@ -382,6 +382,11 @@ const UpdateProduct = () => {
         formData.append('images', file);
       });
       formData.append('product_id', editingProduct.id);
+      
+      // Add product title for better filename generation
+      if (editingProduct.title) {
+        formData.append('product_title', editingProduct.title);
+      }
 
       const response = await axios.post(`${API_URL}/upload/images/`, formData, {
         headers: {

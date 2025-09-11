@@ -5,7 +5,7 @@ import ImageUpload from './ImageUpload';
 import SuccessDialog from './SuccessDialog';
 import ErrorDialog from './ErrorDialog';
 
-const ProductImageUpload = ({ onImagesSelected, initialImages = [] }) => {
+const ProductImageUpload = ({ onImagesSelected, initialImages = [], productTitle = "" }) => {
   const [selectedImages, setSelectedImages] = useState(initialImages);
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
   const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
@@ -69,6 +69,7 @@ const ProductImageUpload = ({ onImagesSelected, initialImages = [] }) => {
           multiple={true}
           maxFiles={10}
           showPreview={true}
+          productTitle={productTitle}
         />
       </div>
 

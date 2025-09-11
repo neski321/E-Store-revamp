@@ -467,8 +467,10 @@ def upload_product_images(request):
         if user_role not in ['admin', 'user']:
             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
         
-        # Get images from request
+        # Get images and product title from request
         images = request.FILES.getlist('images')
+        product_title = request.data.get('product_title', '').strip()
+        
         if not images:
             return Response({'error': 'No images provided'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -492,7 +494,7 @@ def upload_product_images(request):
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         # Upload images to Cloudflare R2
-        upload_results = cloudflare_r2.upload_multiple_images(images, folder='products')
+        upload_results = cloudflare_r2.upload_multiple_images(images, folder='products', product_title=product_title)
         
         # Check for upload errors
         failed_uploads = [result for result in upload_results if not result.get('success')]
@@ -534,8 +536,10 @@ def upload_single_image(request):
         if user_role not in ['admin', 'user']:
             return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
         
-        # Get image from request
+        # Get image and product title from request
         image = request.FILES.get('image')
+        product_title = request.data.get('product_title', '').strip()
+        
         if not image:
             return Response({'error': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -554,7 +558,7 @@ def upload_single_image(request):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Upload image to Cloudflare R2
-        upload_result = cloudflare_r2.upload_image(image, folder='products')
+        upload_result = cloudflare_r2.upload_image(image, folder='products', product_title=product_title)
         
         if not upload_result.get('success'):
             return Response({
