@@ -122,7 +122,7 @@ export const deleteImage = async (imageUrl, currentUser, role) => {
 
 // Validate image file
 export const validateImageFile = (file) => {
-  const maxSize = 5 * 1024 * 1024; // 5MB
+  const maxSize = 10 * 1024 * 1024; // 10MB
   const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
   
   if (!file) {
@@ -130,7 +130,7 @@ export const validateImageFile = (file) => {
   }
   
   if (file.size > maxSize) {
-    return { valid: false, error: 'File size must be less than 5MB' };
+    return { valid: false, error: 'File size must be less than 10MB' };
   }
   
   if (!allowedTypes.includes(file.type)) {

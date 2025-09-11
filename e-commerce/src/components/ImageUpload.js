@@ -177,7 +177,7 @@ const ImageUpload = ({
           {multiple ? 'Select Images' : 'Select Image'}
         </label>
         <p className="text-xs text-gray-500 mt-1">
-          {multiple ? `Up to ${maxFiles} images, max 5MB each` : 'Max 5MB, JPEG/PNG/WebP'}
+          {multiple ? `Up to ${maxFiles} images, max 10MB each` : 'Max 10MB, JPEG/PNG/WebP'}
         </p>
       </div>
 
