@@ -11,16 +11,62 @@ from django.template.loader import render_to_string
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from .models import Product, Review
 from .serializers import ProductSerializer, ReviewSerializer
+from .cloudflare_service import cloudflare_r2
 import json
 
 # Configure Stripe
 stripe.api_key = os.getenv('STRIPE_SECRET_KEY')
 
-@api_view(['GET'])
+@api_view(['GET', 'POST'])
 def product_list(request):
-    """Get all products with optional filtering"""
+    """Get all products with optional filtering or create a new product"""
+    if request.method == 'POST':
+        # Handle product creation
+        try:
+            # Check if user is authenticated
+            user_id = request.headers.get('X-User-ID')
+            user_role = request.headers.get('X-User-Role', 'user')
+            
+            if not user_id:
+                return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Check if user has permission (admin or authenticated user)
+            if user_role not in ['admin', 'user']:
+                return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Create product
+            serializer = ProductSerializer(data=request.data)
+            if serializer.is_valid():
+                product = serializer.save()
+                return Response(ProductSerializer(product).data, status=status.HTTP_201_CREATED)
+            else:
+                # Format validation errors for better user experience
+                formatted_errors = {}
+                for field, errors in serializer.errors.items():
+                    if isinstance(errors, list):
+                        formatted_errors[field] = errors[0] if errors else "Invalid value"
+                    else:
+                        formatted_errors[field] = str(errors)
+                
+                return Response({
+                    'error': 'Validation failed',
+                    'message': 'Please fix the following errors before submitting the product.',
+                    'details': formatted_errors,
+                    'field_errors': formatted_errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            print(f"Error creating product: {e}")
+            return Response({
+                'error': 'Internal server error',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    # Handle GET request (existing logic)
     products = Product.objects.all()
     
     # Apply filters
@@ -122,21 +168,183 @@ def product_list(request):
     
     return Response(response_data)
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
 def product_detail(request, pk):
-    """Get a specific product by ID"""
+    """Get, update, or delete a specific product by ID"""
     try:
         product = Product.objects.get(pk=pk)
-        serializer = ProductSerializer(product)
-        return Response(serializer.data)
     except Product.DoesNotExist:
         return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        serializer = ProductSerializer(product)
+        return Response(serializer.data)
+    
+    elif request.method in ['PUT', 'PATCH']:
+        # Handle product update
+        try:
+            # Check if user is authenticated
+            user_id = request.headers.get('X-User-ID')
+            user_role = request.headers.get('X-User-Role', 'user')
+            
+            if not user_id:
+                return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Check if user has permission (admin or product owner)
+            if user_role not in ['admin', 'user']:
+                return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # For partial updates (PATCH), use partial=True
+            partial = request.method == 'PATCH'
+            serializer = ProductSerializer(product, data=request.data, partial=partial)
+            
+            if serializer.is_valid():
+                # Store old images for cleanup (before database update)
+                old_images = []
+                if 'images' in request.data:
+                    # Handle different image formats for backward compatibility
+                    if isinstance(product.images, list):
+                        old_images = product.images
+                    elif isinstance(product.images, dict) and 'urls' in product.images:
+                        old_images = product.images['urls']
+                    elif isinstance(product.images, dict):
+                        old_images = list(product.images.values())
+                    
+                    # Get new images (should be array format)
+                    new_images = request.data.get('images', [])
+                    if not isinstance(new_images, list):
+                        new_images = []
+                    
+                    # Find images to delete
+                    images_to_delete = [img for img in old_images if img not in new_images]
+                
+                # Update the product in database FIRST
+                updated_product = serializer.save()
+                
+                # Clean up old images from Cloudflare AFTER successful database update
+                if 'images' in request.data and images_to_delete:
+                    for image_url in images_to_delete:
+                        try:
+                            from .cloudflare_service import cloudflare_r2
+                            if cloudflare_r2.is_configured:
+                                # Extract filename from URL
+                                filename = image_url.split('/')[-1]
+                                cloudflare_r2.delete_image(filename)
+                                pass  # Image deleted successfully
+                        except Exception as e:
+                            print(f"Error deleting old image {image_url}: {e}")
+                
+                return Response(ProductSerializer(updated_product).data, status=status.HTTP_200_OK)
+            else:
+                # Format validation errors for better user experience
+                formatted_errors = {}
+                for field, errors in serializer.errors.items():
+                    if isinstance(errors, list):
+                        formatted_errors[field] = errors[0] if errors else "Invalid value"
+                    else:
+                        formatted_errors[field] = str(errors)
+                
+                return Response({
+                    'error': 'Validation failed',
+                    'message': 'Please fix the following errors before updating the product.',
+                    'details': formatted_errors,
+                    'field_errors': formatted_errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+        except Exception as e:
+            print(f"Error updating product: {e}")
+            return Response({
+                'error': 'Internal server error',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    elif request.method == 'DELETE':
+        # Handle product deletion
+        try:
+            # Check if user is authenticated
+            user_id = request.headers.get('X-User-ID')
+            user_role = request.headers.get('X-User-Role', 'user')
+            
+            if not user_id:
+                return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            # Check if user has permission (admin or product owner)
+            if user_role not in ['admin', 'user']:
+                return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Delete all product images from Cloudflare
+            try:
+                from .cloudflare_service import cloudflare_r2
+                if cloudflare_r2.is_configured:
+                    product_images = product.images.get('urls', [])
+                    for image_url in product_images:
+                        try:
+                            # Extract filename from URL
+                            filename = image_url.split('/')[-1]
+                            cloudflare_r2.delete_image(filename)
+                            print(f"Deleted product image: {filename}")
+                        except Exception as e:
+                            print(f"Error deleting image {image_url}: {e}")
+            except Exception as e:
+                print(f"Error during image cleanup: {e}")
+            
+            # Delete the product
+            product.delete()
+            
+            return Response(status=status.HTTP_204_NO_CONTENT)
+            
+        except Exception as e:
+            print(f"Error deleting product: {e}")
+            return Response({
+                'error': 'Internal server error',
+                'details': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 def categories(request):
     """Get all available categories"""
     categories = Product.objects.values_list('category', flat=True).distinct()
     return Response(list(categories))
+
+@api_view(['POST'])
+def create_category(request):
+    """Create a new category"""
+    try:
+        # Check if user is authenticated
+        user_id = request.headers.get('X-User-ID')
+        user_role = request.headers.get('X-User-Role', 'user')
+        
+        if not user_id:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Check if user has permission (admin or authenticated user)
+        if user_role not in ['admin', 'user']:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        category_name = request.data.get('name', '').strip()
+        
+        if not category_name:
+            return Response({'error': 'Category name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if category already exists
+        existing_categories = Product.objects.values_list('category', flat=True).distinct()
+        if category_name in existing_categories:
+            return Response({'error': 'Category already exists'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # For now, we'll just return success since categories are stored as strings
+        # In a more complex system, you might want to create a Category model
+        return Response({
+            'success': True,
+            'message': f'Category "{category_name}" is now available',
+            'category': category_name
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        print(f"Error creating category: {e}")
+        return Response({
+            'error': 'Internal server error',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 def brands(request):
@@ -235,12 +443,180 @@ def review_detail(request, product_id, review_id):
             review.delete()
             # Update product rating
             product.update_average_rating()
-            return Response({'message': 'Review deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+            return Response(status=status.HTTP_204_NO_CONTENT)
             
     except Product.DoesNotExist:
         return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
     except Review.DoesNotExist:
         return Response({'error': 'Review not found'}, status=status.HTTP_404_NOT_FOUND)
+
+# Image Upload Endpoints
+
+@api_view(['POST'])
+def upload_product_images(request):
+    """Upload product images to Cloudflare R2"""
+    try:
+        # Check if user is authenticated
+        user_id = request.headers.get('X-User-ID')
+        user_role = request.headers.get('X-User-Role', 'user')
+        
+        if not user_id:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Check if user has permission (admin or authenticated user)
+        if user_role not in ['admin', 'user']:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get images from request
+        images = request.FILES.getlist('images')
+        if not images:
+            return Response({'error': 'No images provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate image count
+        if len(images) > 10:  # Limit to 10 images per upload
+            return Response({'error': 'Too many images. Maximum 10 allowed.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate image sizes (5MB limit)
+        max_size = 5 * 1024 * 1024  # 5MB in bytes
+        for i, image in enumerate(images):
+            if image.size > max_size:
+                return Response({
+                    'error': f'Image {i + 1} is too large. Maximum size is 5MB.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Validate file type
+            allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+            if image.content_type not in allowed_types:
+                return Response({
+                    'error': f'Image {i + 1} has invalid format. Only JPEG, PNG, and WebP are allowed.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Upload images to Cloudflare R2
+        upload_results = cloudflare_r2.upload_multiple_images(images, folder='products')
+        
+        # Check for upload errors
+        failed_uploads = [result for result in upload_results if not result.get('success')]
+        if failed_uploads:
+            return Response({
+                'error': 'Some images failed to upload',
+                'details': failed_uploads
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Extract URLs from successful uploads
+        uploaded_urls = [result['url'] for result in upload_results if result.get('success')]
+        
+        return Response({
+            'success': True,
+            'message': f'Successfully uploaded {len(uploaded_urls)} images',
+            'urls': uploaded_urls,
+            'count': len(uploaded_urls)
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        print(f"Error in upload_product_images: {e}")
+        return Response({
+            'error': 'Internal server error',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def upload_single_image(request):
+    """Upload a single image to Cloudflare R2"""
+    try:
+        # Check if user is authenticated
+        user_id = request.headers.get('X-User-ID')
+        user_role = request.headers.get('X-User-Role', 'user')
+        
+        if not user_id:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Check if user has permission
+        if user_role not in ['admin', 'user']:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get image from request
+        image = request.FILES.get('image')
+        if not image:
+            return Response({'error': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate image size (5MB limit)
+        max_size = 5 * 1024 * 1024  # 5MB in bytes
+        if image.size > max_size:
+            return Response({
+                'error': 'Image is too large. Maximum size is 5MB.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+        if image.content_type not in allowed_types:
+            return Response({
+                'error': 'Invalid image format. Only JPEG, PNG, and WebP are allowed.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Upload image to Cloudflare R2
+        upload_result = cloudflare_r2.upload_image(image, folder='products')
+        
+        if not upload_result.get('success'):
+            return Response({
+                'error': 'Failed to upload image',
+                'details': upload_result.get('error')
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'success': True,
+            'message': 'Image uploaded successfully',
+            'url': upload_result['url'],
+            'filename': upload_result['filename']
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        print(f"Error in upload_single_image: {e}")
+        return Response({
+            'error': 'Internal server error',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@csrf_exempt
+@api_view(['DELETE'])
+def delete_image(request):
+    """Delete an image from Cloudflare R2"""
+    try:
+        # Check if user is authenticated
+        user_id = request.headers.get('X-User-ID')
+        user_role = request.headers.get('X-User-Role', 'user')
+        
+        if not user_id:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Only admins can delete images
+        if user_role != 'admin':
+            return Response({'error': 'Admin permission required'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get image URL from request
+        image_url = request.data.get('url')
+        if not image_url:
+            return Response({'error': 'No image URL provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Delete image from Cloudflare R2
+        delete_result = cloudflare_r2.delete_image(image_url)
+        
+        if not delete_result.get('success'):
+            return Response({
+                'error': 'Failed to delete image',
+                'details': delete_result.get('error')
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'success': True,
+            'message': 'Image deleted successfully'
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        print(f"Error in delete_image: {e}")
+        return Response({
+            'error': 'Internal server error',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Payment Processing Endpoints
 

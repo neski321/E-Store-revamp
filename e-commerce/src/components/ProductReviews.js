@@ -3,6 +3,8 @@ import { useAuth } from '../contexts/AuthContext';
 import SuccessDialog from './SuccessDialog';
 import ErrorDialog from './ErrorDialog';
 
+const API_URL = process.env.REACT_APP_API_URL || '';
+
 const ProductReviews = ({ productId, reviews = [], onReviewAdded }) => {
   const [localReviews, setLocalReviews] = useState(reviews);
   const [newReview, setNewReview] = useState({ 
@@ -58,7 +60,7 @@ const ProductReviews = ({ productId, reviews = [], onReviewAdded }) => {
         headers['X-User-Role'] = role || 'user';
       }
       
-      const response = await fetch(`/api/products/${productId}/reviews/`, {
+      const response = await fetch(`${API_URL}/products/${productId}/reviews/`, {
         method: 'POST',
         headers,
         body: JSON.stringify(newReview),
@@ -122,7 +124,7 @@ const ProductReviews = ({ productId, reviews = [], onReviewAdded }) => {
         headers['X-User-Role'] = role || 'user';
       }
       
-      const response = await fetch(`/api/products/${productId}/reviews/${editingReview}/`, {
+      const response = await fetch(`${API_URL}/products/${productId}/reviews/${editingReview}/`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(editReview),
@@ -189,7 +191,7 @@ const ProductReviews = ({ productId, reviews = [], onReviewAdded }) => {
         headers['X-User-Role'] = role || 'user';
           }
           
-          const response = await fetch(`/api/products/${productId}/reviews/${reviewId}/`, {
+          const response = await fetch(`${API_URL}/products/${productId}/reviews/${reviewId}/`, {
             method: 'DELETE',
             headers,
           });
