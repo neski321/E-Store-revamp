@@ -21,7 +21,7 @@ const getAuthHeaders = (currentUser, role) => {
 };
 
 // Upload multiple images
-export const uploadMultipleImages = async (imageFiles, currentUser, role) => {
+export const uploadMultipleImages = async (imageFiles, currentUser, role, productTitle = '') => {
   try {
     const formData = new FormData();
     
@@ -29,6 +29,11 @@ export const uploadMultipleImages = async (imageFiles, currentUser, role) => {
     imageFiles.forEach((file, index) => {
       formData.append('images', file);
     });
+    
+    // Add product title to FormData
+    if (productTitle) {
+      formData.append('product_title', productTitle);
+    }
     
     const response = await axios.post(
       `${API_BASE_URL}/upload/images/`,
@@ -53,10 +58,15 @@ export const uploadMultipleImages = async (imageFiles, currentUser, role) => {
 };
 
 // Upload single image
-export const uploadSingleImage = async (imageFile, currentUser, role) => {
+export const uploadSingleImage = async (imageFile, currentUser, role, productTitle = '') => {
   try {
     const formData = new FormData();
     formData.append('image', imageFile);
+    
+    // Add product title to FormData
+    if (productTitle) {
+      formData.append('product_title', productTitle);
+    }
     
     const response = await axios.post(
       `${API_BASE_URL}/upload/image/`,
