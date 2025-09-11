@@ -50,3 +50,5 @@ typing_extensions==4.14.0
 uritemplate==4.2.0
 urllib3==2.5.0
 gunicorn==23.0.0
+boto3==1.35.85
+Pillow==11.0.0

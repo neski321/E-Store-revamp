@@ -1,6 +1,16 @@
 import React from 'react';
 
-const ErrorDialog = ({ isOpen, onClose, title, message, details, isConfirmation = false, onConfirm }) => {
+const ErrorDialog = ({ 
+  isOpen, 
+  onClose, 
+  title, 
+  message, 
+  details, 
+  isConfirmation = false, 
+  onConfirm, 
+  confirmText = "Delete", 
+  cancelText = "Cancel" 
+}) => {
   if (!isOpen) return null;
 
   return (
@@ -53,7 +63,7 @@ const ErrorDialog = ({ isOpen, onClose, title, message, details, isConfirmation 
                 onClick={onClose}
                 className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors font-medium"
               >
-                Cancel
+                {cancelText}
               </button>
               <button
                 onClick={() => {
@@ -62,7 +72,7 @@ const ErrorDialog = ({ isOpen, onClose, title, message, details, isConfirmation 
                 }}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
               >
-                Delete
+                {confirmText}
               </button>
             </div>
           ) : (

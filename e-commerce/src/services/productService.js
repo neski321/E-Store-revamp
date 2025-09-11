@@ -81,11 +81,22 @@ export const getCategoriesFromProducts = (products) => {
   return categories.filter(category => category && category.trim() !== '');
 };
 
-export const addProduct = async (productData) => {
+export const addProduct = async (productData, currentUser, role) => {
     try {
       console.log('Product Data Sent:', productData);  // Log the product data before sending it
   
-      const response = await axios.post(`${API_BASE_URL}/products/`, productData);
+      // Prepare headers with authentication
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (currentUser) {
+        headers['X-User-ID'] = currentUser.uid;
+        headers['X-User-Email'] = currentUser.email;
+        headers['X-User-Role'] = role || 'user';
+      }
+  
+      const response = await axios.post(`${API_BASE_URL}/products/`, productData, { headers });
   
       // Log the entire response
       console.log('Response from Server:', response.data);
@@ -102,9 +113,20 @@ export const addProduct = async (productData) => {
     }
   };
 
-export const updateProduct = async (id, updatedProduct) => {
+export const updateProduct = async (id, updatedProduct, currentUser, role) => {
     try {
-      const response = await axios.patch(`${API_BASE_URL}/products/${id}/`, updatedProduct);
+      // Prepare headers with authentication
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (currentUser) {
+        headers['X-User-ID'] = currentUser.uid;
+        headers['X-User-Email'] = currentUser.email;
+        headers['X-User-Role'] = role || 'user';
+      }
+
+      const response = await axios.patch(`${API_BASE_URL}/products/${id}/`, updatedProduct, { headers });
       return response.data;
     } catch (error) {
       console.error('Error updating product:', error);
@@ -112,13 +134,24 @@ export const updateProduct = async (id, updatedProduct) => {
     }
   };
 
-export const deleteProduct = async (id) => {
+export const deleteProduct = async (id, currentUser, role) => {
     try {
-        const response = await axios.delete(`${API_BASE_URL}/products/${id}/`);
-        return response.data;
+      // Prepare headers with authentication
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (currentUser) {
+        headers['X-User-ID'] = currentUser.uid;
+        headers['X-User-Email'] = currentUser.email;
+        headers['X-User-Role'] = role || 'user';
+      }
+
+      const response = await axios.delete(`${API_BASE_URL}/products/${id}/`, { headers });
+      return response.data;
     } catch (error) {
-        console.error('Error deleting product:', error);
-        throw error;
+      console.error('Error deleting product:', error);
+      throw error;
     }
 };
 

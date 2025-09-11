@@ -165,14 +165,30 @@ function ProductDetail() {
   };
 
   const renderImage = () => {
-    if (product?.images && Array.isArray(product.images) && product.images.length > 0) {
+    // Extract image URLs from different formats
+    let imageUrls = [];
+    
+    if (product?.images) {
+      if (Array.isArray(product.images)) {
+        // Array format: ['url1', 'url2', ...]
+        imageUrls = product.images;
+      } else if (product.images.urls && Array.isArray(product.images.urls)) {
+        // Object with urls array: {urls: ['url1', 'url2', ...]}
+        imageUrls = product.images.urls;
+      } else if (typeof product.images === 'object') {
+        // Object format: {image_1: 'url1', image_2: 'url2', ...}
+        imageUrls = Object.values(product.images).filter(url => typeof url === 'string');
+      }
+    }
+    
+    if (imageUrls.length > 0) {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {product.images.map((image, index) => (
+          {imageUrls.map((image, index) => (
             <img 
               key={index}
               src={image} 
-                              alt={`${product.title} ${index + 1}`} 
+              alt={`${product.title} ${index + 1}`} 
               className="w-full h-64 object-cover rounded-lg shadow-md"
             />
           ))}
