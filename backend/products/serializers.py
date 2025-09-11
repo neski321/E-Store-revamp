@@ -26,10 +26,14 @@ class ProductSerializer(serializers.ModelSerializer):
     reviews = ReviewSerializer(many=True, required=False)
     dimensions = DimensionSerializer(required=False)
     id = serializers.ReadOnlyField()
+    review_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = '__all__'
+    
+    def get_review_count(self, obj):
+        return obj.reviews.count()
         
     def create(self, validated_data):
         # Handle dimensions and reviews

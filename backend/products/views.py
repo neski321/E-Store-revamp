@@ -11,7 +11,7 @@ from django.template.loader import render_to_string
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Product
+from .models import Product, Review
 from .serializers import ProductSerializer, ReviewSerializer
 import json
 
@@ -160,7 +160,19 @@ def add_review(request, product_id):
     """Add a review to a product"""
     try:
         product = Product.objects.get(pk=product_id)
-        serializer = ReviewSerializer(data=request.data)
+        
+        # Get user info from request headers (Firebase token)
+        user_id = request.headers.get('X-User-ID')
+        user_email = request.headers.get('X-User-Email')
+        
+        # Prepare review data with user info
+        review_data = request.data.copy()
+        if user_id:
+            review_data['reviewer_id'] = user_id
+        if user_email:
+            review_data['reviewer_email'] = user_email
+        
+        serializer = ReviewSerializer(data=review_data)
         
         if serializer.is_valid():
             serializer.save(product=product)
@@ -173,6 +185,62 @@ def add_review(request, product_id):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     except Product.DoesNotExist:
         return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+
+@api_view(['PUT', 'DELETE'])
+def review_detail(request, product_id, review_id):
+    """Update or delete a specific review"""
+    try:
+        product = Product.objects.get(pk=product_id)
+        review = Review.objects.get(pk=review_id, product=product)
+        
+        # Get user info from request headers
+        user_id = request.headers.get('X-User-ID')
+        user_role = request.headers.get('X-User-Role', 'user')
+        
+        # Check permissions
+        is_owner = user_id and review.reviewer_id == user_id
+        is_admin = user_role == 'admin'
+        
+        if not is_owner and not is_admin:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        if request.method == 'PUT':
+            # Only the review owner can edit (not admins)
+            if not is_owner:
+                return Response({'error': 'Only the review author can edit their review'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Update review
+            serializer = ReviewSerializer(review, data=request.data, partial=True)
+            if serializer.is_valid():
+                # Don't allow updating reviewer_id or reviewer_email for security
+                update_data = serializer.validated_data
+                if 'reviewer_id' in update_data:
+                    del update_data['reviewer_id']
+                if 'reviewer_email' in update_data:
+                    del update_data['reviewer_email']
+                
+                # Update only the allowed fields
+                for field, value in update_data.items():
+                    setattr(review, field, value)
+                review.save()
+                
+                # Update product rating
+                product.update_average_rating()
+                return Response(ReviewSerializer(review).data)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        elif request.method == 'DELETE':
+            # Delete review
+            review.delete()
+            # Update product rating
+            product.update_average_rating()
+            return Response({'message': 'Review deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+            
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Review.DoesNotExist:
+        return Response({'error': 'Review not found'}, status=status.HTTP_404_NOT_FOUND)
 
 # Payment Processing Endpoints
 

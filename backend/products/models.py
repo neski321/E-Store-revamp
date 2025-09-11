@@ -50,7 +50,8 @@ class Product(models.Model):
     
     def update_average_rating(self):
         """Update the product's average rating based on reviews"""
-        reviews = self.reviews.filter(status='approved')
+        # Include all reviews (both approved and pending) for rating calculation
+        reviews = self.reviews.all()
         if reviews.exists():
             avg_rating = reviews.aggregate(avg=models.Avg('rating'))['avg']
             self.rating = round(avg_rating, 1)
@@ -72,7 +73,7 @@ class Review(models.Model):
     reviewer_name = models.CharField(max_length=100)
     reviewer_email = models.EmailField()
     reviewer_id = models.CharField(max_length=100, blank=True, null=True)  # For user identification
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='approved')
     helpful_votes = models.IntegerField(default=0)
     total_votes = models.IntegerField(default=0)
     is_verified_purchase = models.BooleanField(default=False)
@@ -94,8 +95,8 @@ class Review(models.Model):
         is_new = self.pk is None
         super().save(*args, **kwargs)
         
-        # Update product rating if this is a new approved review
-        if is_new and self.status == 'approved':
+        # Update product rating if this is a new review
+        if is_new:
             self.product.update_average_rating()
 
 class Dimension(models.Model):

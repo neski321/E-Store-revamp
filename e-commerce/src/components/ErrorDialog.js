@@ -1,6 +1,6 @@
 import React from 'react';
 
-const ErrorDialog = ({ isOpen, onClose, title, message, details }) => {
+const ErrorDialog = ({ isOpen, onClose, title, message, details, isConfirmation = false, onConfirm }) => {
   if (!isOpen) return null;
 
   return (
@@ -47,12 +47,32 @@ const ErrorDialog = ({ isOpen, onClose, title, message, details }) => {
 
         {/* Footer */}
         <div className="flex justify-end p-6 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
-          >
-            OK
-          </button>
+          {isConfirmation ? (
+            <div className="flex space-x-3">
+              <button
+                onClick={onClose}
+                className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (onConfirm) onConfirm();
+                  onClose();
+                }}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
+              >
+                Delete
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onClose}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium"
+            >
+              OK
+            </button>
+          )}
         </div>
       </div>
     </div>

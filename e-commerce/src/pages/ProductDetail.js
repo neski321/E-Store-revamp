@@ -35,25 +35,28 @@ function ProductDetail() {
     setAuthPromptModal({ isOpen: false, actionType: 'checkout' });
   };
 
+  const fetchProduct = async () => {
+    try {
+      const response = await fetch(`/api/products/${id}/`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setProduct(data);
+    } catch (error) {
+      console.error('Error fetching the product:', error);
+      setErrorDialog({
+        isOpen: true,
+        title: 'Error Loading Product',
+        message: 'Failed to load product details. Please try again.',
+        details: error.message
+      });
+    }
+  };
+
   useEffect(() => {
     // Fetch product details
-    fetch(`/api/products/${id}/`)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => setProduct(data))
-      .catch(error => {
-        console.error('Error fetching the product:', error);
-        setErrorDialog({
-          isOpen: true,
-          title: 'Error Loading Product',
-          message: 'Failed to load product details. Please try again.',
-          details: error.message
-        });
-      });
+    fetchProduct();
 
     // Load checkout list
     loadCheckoutList();
@@ -248,7 +251,7 @@ function ProductDetail() {
                   <div className="flex items-center mr-2">
                     {renderStars(product.rating)}
                   </div>
-                  <span className="text-lg text-gray-600">({product.rating})</span>
+                  <span className="text-lg text-gray-600">({product.review_count || 0})</span>
                 </div>
 
                 {/* Price */}
@@ -308,7 +311,12 @@ function ProductDetail() {
               </div>
 
               {/* Reviews */}
-              <ProductReviews productId={product.id} productTitle={product.title} reviews={product.reviews || []} />
+              <ProductReviews 
+                productId={product.id} 
+                productTitle={product.title} 
+                reviews={product.reviews || []} 
+                onReviewAdded={fetchProduct}
+              />
             </div>
 
             {/* Sidebar */}

@@ -260,7 +260,7 @@ const CategoryList = () => {
                         </svg>
                       ))}
                     </div>
-                    <span className="text-sm text-gray-500 ml-2">({product.rating})</span>
+                    <span className="text-sm text-gray-500 ml-2">({product.review_count || 0})</span>
                   </div>
 
                   {/* Price */}

@@ -115,6 +115,7 @@ WSGI_APPLICATION = "backend.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+# Database - Neon PostgreSQL
 DATABASES = {
     'default': dj_database_url.config(
         default=os.getenv("DATABASE_URL"),
