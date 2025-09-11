@@ -4,16 +4,15 @@
 
 ### Django Settings:
 - `DEBUG=False` (or set to 'False' for production)
-- `DATABASE_URL=your_railway_postgresql_url`
-- `FIREBASE_PROJECT_ID=your_firebase_project_id`
+- `DATABASE_URL=your_railway_postgresql_url` (auto-provided by Railway)
+- `SECRET_KEY=your_django_secret_key`
 
-### Optional Environment Variables:
+### Host Configuration:
 - `ALLOWED_HOSTS=*.railway.app,healthcheck.railway.app,e-commerce-by-neski.up.railway.app`
 - `CORS_ALLOWED_ORIGINS=https://e-commerce-by-neski.up.railway.app`
 
-### Firebase Configuration:
-- `FIREBASE_TYPE=service_account`
-- `FIREBASE_PROJECT_ID=your_project_id`
+### Firebase Configuration (Backend):
+- `FIREBASE_PROJECT_ID=your_firebase_project_id`
 - `FIREBASE_PRIVATE_KEY_ID=your_private_key_id`
 - `FIREBASE_PRIVATE_KEY=your_private_key`
 - `FIREBASE_CLIENT_EMAIL=your_client_email`
@@ -22,6 +21,27 @@
 - `FIREBASE_TOKEN_URI=https://oauth2.googleapis.com/token`
 - `FIREBASE_AUTH_PROVIDER_X509_CERT_URL=https://www.googleapis.com/oauth2/v1/certs`
 - `FIREBASE_CLIENT_X509_CERT_URL=your_cert_url`
+
+### Cloudflare R2 Configuration (NEW):
+- `CLOUDFLARE_R2_ACCESS_KEY_ID=your_access_key_id`
+- `CLOUDFLARE_R2_SECRET_ACCESS_KEY=your_secret_access_key`
+- `CLOUDFLARE_R2_BUCKET_NAME=your_bucket_name`
+- `CLOUDFLARE_R2_ACCOUNT_ID=your_account_id`
+- `CLOUDFLARE_R2_PUBLIC_URL=https://your-bucket.your-account.r2.cloudflarestorage.com`
+
+### Stripe Configuration:
+- `STRIPE_SECRET_KEY=your_stripe_secret_key`
+- `STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret`
+
+### Frontend Environment Variables (NEW):
+- `REACT_APP_API_URL=https://e-commerce-by-neski.up.railway.app/api`
+- `REACT_APP_FIREBASE_API_KEY=your_firebase_api_key`
+- `REACT_APP_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com`
+- `REACT_APP_FIREBASE_PROJECT_ID=your_project_id`
+- `REACT_APP_FIREBASE_STORAGE_BUCKET=your_project.appspot.com`
+- `REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your_sender_id`
+- `REACT_APP_FIREBASE_APP_ID=your_app_id`
+- `REACT_APP_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key`
 
 ## How to Set in Railway:
 1. Go to your Railway project dashboard
@@ -32,4 +52,7 @@
 ## Important Notes:
 - The `DATABASE_URL` will be automatically provided by Railway if you're using their PostgreSQL service
 - The `PORT` variable is automatically set by Railway
-- Make sure `DEBUG=False` for production deployment 
+- Make sure `DEBUG=False` for production deployment
+- **CRITICAL**: `REACT_APP_API_URL` must point to your Railway backend URL, not localhost
+- Cloudflare R2 variables are required for image upload/management functionality
+- All Firebase variables are required for authentication to work properly 
