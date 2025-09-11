@@ -24,7 +24,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from products.views import (
-    product_list, product_detail, categories, brands, add_review,
+    product_list, product_detail, categories, brands, add_review, review_detail,
     create_payment_intent, send_order_confirmation, webhook
 )
 
@@ -40,6 +40,7 @@ urlpatterns = [
     path('api/categories/', categories, name='categories'),
     path('api/brands/', brands, name='brands'),
     path('api/products/<int:product_id>/reviews/', add_review, name='add_review'),
+    path('api/products/<int:product_id>/reviews/<int:review_id>/', review_detail, name='review_detail'),
     
     # Payment endpoints
     path('api/create-payment-intent/', create_payment_intent, name='create_payment_intent'),
