@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import SuccessDialog from './SuccessDialog';
 import ErrorDialog from './ErrorDialog';
 
-const API_URL = process.env.REACT_APP_API_URL || '';
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 const ProductReviews = ({ productId, reviews = [], onReviewAdded }) => {
   const [localReviews, setLocalReviews] = useState(reviews);
