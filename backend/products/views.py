@@ -486,11 +486,11 @@ def upload_product_images(request):
             return Response({'error': 'Too many images. Maximum 10 allowed.'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Validate image sizes (5MB limit)
-        max_size = 5 * 1024 * 1024  # 5MB in bytes
+        max_size = 10 * 1024 * 1024  # 5MB in bytes
         for i, image in enumerate(images):
             if image.size > max_size:
                 return Response({
-                    'error': f'Image {i + 1} is too large. Maximum size is 5MB.'
+                    'error': f'Image {i + 1} is too large. Maximum size is 10MB.'
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Validate file type
