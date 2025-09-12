@@ -7,7 +7,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import SuccessDialog from '../components/SuccessDialog';
 import ErrorDialog from '../components/ErrorDialog';
-import ProductImageUpload from '../components/ProductImageUpload';
+import ImageUpload from '../components/ImageUpload';
 
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
@@ -27,6 +27,7 @@ const UpdateProduct = () => {
   const [productImages, setProductImages] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [hasUnsavedImageChanges, setHasUnsavedImageChanges] = useState(false);
+  const [originalImages, setOriginalImages] = useState([]);
   
   // Dialog states
   const [successDialog, setSuccessDialog] = useState({ isOpen: false });
@@ -180,6 +181,7 @@ const UpdateProduct = () => {
           
           const imageUrls = extractImageUrls(response.data.images);
           setProductImages(imageUrls);
+          setOriginalImages(imageUrls); // Store original images for revert functionality
           console.log('Loaded images:', imageUrls);
         } else {
           setProductNotFound(true);
@@ -207,6 +209,7 @@ const UpdateProduct = () => {
             
             const imageUrls = extractImageUrls(product.images);
             setProductImages(imageUrls);
+            setOriginalImages(imageUrls); // Store original images for revert functionality
             console.log('Loaded images (title search):', imageUrls);
           } else {
             // Show multiple results for user selection
@@ -373,57 +376,55 @@ const UpdateProduct = () => {
     
     const imageUrls = extractImageUrls(product.images);
     setProductImages(imageUrls);
+    setOriginalImages(imageUrls); // Store original images for revert functionality
     console.log('Loaded images from selection:', imageUrls);
   };
 
-  const handleImageUpload = async (files) => {
-    if (!editingProduct) return;
+  const handleImagesUploaded = async (uploadedUrls) => {
+    if (!editingProduct || !uploadedUrls || uploadedUrls.length === 0) return;
     
     setUploadingImages(true);
     try {
-      const formData = new FormData();
-      files.forEach(file => {
-        formData.append('images', file);
-      });
-      formData.append('product_id', editingProduct.id);
+      const updatedImages = [...productImages, ...uploadedUrls];
       
-      // Add product title for better filename generation
-      if (editingProduct.title) {
-        formData.append('product_title', editingProduct.title);
-      }
-
-      const response = await axios.post(`${API_URL}/upload/images/`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'X-User-ID': currentUser?.uid,
-          'X-User-Email': currentUser?.email,
-          'X-User-Role': role || 'user'
-        }
+      // Update local state immediately
+      setProductImages(updatedImages);
+      setHasUnsavedImageChanges(true);
+      
+      // Immediately save to database
+      const imageUpdateData = {
+        images: updatedImages
+      };
+      
+      await updateProduct(editingProduct.id, imageUpdateData, currentUser, role);
+      
+      // Update the editing product with new images
+      setEditingProduct(prev => ({
+        ...prev,
+        images: updatedImages
+      }));
+      
+      setSuccessDialog({
+        isOpen: true,
+        title: 'Images Uploaded & Saved',
+        message: `Successfully uploaded and saved ${uploadedUrls.length} image${uploadedUrls.length > 1 ? 's' : ''} to the database.`
       });
-
-      if (response.data && response.data.urls) {
-        setProductImages(prev => [...prev, ...response.data.urls]);
-        setHasUnsavedImageChanges(true);
-        setSuccessDialog({
-          isOpen: true,
-          title: 'Images Uploaded',
-          message: `Successfully uploaded ${files.length} image${files.length > 1 ? 's' : ''}. Click "Update Product" to save changes.`
-        });
-      }
-    } catch (error) {
-      console.error('Error uploading images:', error);
+    } catch (dbError) {
+      console.error('Error saving images to database:', dbError);
+      // Revert local state if database save fails
+      setProductImages(prev => prev.filter(img => !uploadedUrls.includes(img)));
       setErrorDialog({
         isOpen: true,
-        title: 'Upload Error',
-        message: 'Failed to upload images. Please try again.',
-        details: error.response?.data?.message || error.message
+        title: 'Database Save Error',
+        message: 'Images were uploaded but failed to save to database. Please try again.',
+        details: dbError.response?.data?.message || dbError.message
       });
     } finally {
       setUploadingImages(false);
     }
   };
 
-  const handleImageDelete = (imageUrl) => {
+  const handleImageDelete = async (imageUrl) => {
     // Check if user is admin
     if (role !== 'admin') {
       setErrorDialog({
@@ -440,17 +441,44 @@ const UpdateProduct = () => {
       isOpen: true,
       title: 'Remove Image',
       message: 'Are you sure you want to remove this image from the product?',
-      details: 'The image will be permanently deleted when you save the product changes.',
-      onConfirm: () => {
-        // Only update local state - actual deletion happens when product is saved
-        setProductImages(prev => prev.filter(img => img !== imageUrl));
-        setHasUnsavedImageChanges(true);
-        
-        setSuccessDialog({
-          isOpen: true,
-          title: 'Image Removed',
-          message: 'Image has been removed from the product. Click "Update Product" to save changes.'
-        });
+      details: 'The image will be immediately removed from the database.',
+      onConfirm: async () => {
+        try {
+          const updatedImages = productImages.filter(img => img !== imageUrl);
+          
+          // Update local state
+          setProductImages(updatedImages);
+          setHasUnsavedImageChanges(true);
+          
+          // Immediately save to database
+          const imageUpdateData = {
+            images: updatedImages
+          };
+          
+          await updateProduct(editingProduct.id, imageUpdateData, currentUser, role);
+          
+          // Update the editing product with new images
+          setEditingProduct(prev => ({
+            ...prev,
+            images: updatedImages
+          }));
+          
+          setSuccessDialog({
+            isOpen: true,
+            title: 'Image Removed & Saved',
+            message: 'Image has been removed from the product and database.'
+          });
+        } catch (error) {
+          console.error('Error removing image from database:', error);
+          // Revert local state if database save fails
+          setProductImages(prev => [...prev, imageUrl]);
+          setErrorDialog({
+            isOpen: true,
+            title: 'Database Save Error',
+            message: 'Failed to remove image from database. Please try again.',
+            details: error.response?.data?.message || error.message
+          });
+        }
       }
     });
   };
@@ -471,6 +499,39 @@ const UpdateProduct = () => {
       if (validateStep(currentStep)) {
         nextStep();
       }
+    }
+  };
+
+  const revertImageChanges = async () => {
+    try {
+      // Revert images to original stat
+      const imageUpdateData = {
+        images: originalImages
+      };
+      
+      await updateProduct(editingProduct.id, imageUpdateData, currentUser, role);
+      
+      // Update local state
+      setProductImages(originalImages);
+      setEditingProduct(prev => ({
+        ...prev,
+        images: originalImages
+      }));
+      setHasUnsavedImageChanges(false);
+      
+      setSuccessDialog({
+        isOpen: true,
+        title: 'Changes Reverted',
+        message: 'All image changes have been reverted to the original state.'
+      });
+    } catch (error) {
+      console.error('Error reverting image changes:', error);
+      setErrorDialog({
+        isOpen: true,
+        title: 'Revert Failed',
+        message: 'Failed to revert image changes. Please try again.',
+        details: error.response?.data?.message || error.message
+      });
     }
   };
 
@@ -501,23 +562,28 @@ const UpdateProduct = () => {
     setSubmitting(true);
     
     try {
-      // Include updated images in the update
+      // Only update non-image fields since images are already saved
       const updatedProduct = { 
-        ...changedFields,
-        images: productImages
+        ...changedFields
+        // Note: images are not included here since they're already saved immediately
       };
-      await updateProduct(editingProduct.id, updatedProduct, currentUser, role);
+      
+      // Only update if there are non-image changes
+      if (Object.keys(updatedProduct).length > 0) {
+        await updateProduct(editingProduct.id, updatedProduct, currentUser, role);
+      }
       
       setSuccessDialog({
         isOpen: true,
         title: 'Product Updated Successfully! 🎉',
-        message: `${editingProduct.title} has been updated successfully with new images.`
+        message: `${editingProduct.title} has been updated successfully.`
       });
       
       setEditingProduct(null);
       setChangedFields({});
       setErrors({});
       setProductImages([]);
+      setOriginalImages([]);
       setHasUnsavedImageChanges(false);
     } catch (error) {
       console.error('Error updating product with PATCH:', error);
@@ -804,14 +870,27 @@ const UpdateProduct = () => {
             <div className="bg-gray-50 rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-lg font-semibold text-gray-900">Current Images</h4>
-                {hasUnsavedImageChanges && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    Unsaved Changes
-                  </span>
-                )}
+                <div className="flex items-center space-x-2">
+                  {hasUnsavedImageChanges && (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Images Modified
+                    </span>
+                  )}
+                  {hasUnsavedImageChanges && (
+                    <button
+                      onClick={revertImageChanges}
+                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                      </svg>
+                      Revert Changes
+                    </button>
+                  )}
+                </div>
               </div>
               
               {(() => {
@@ -854,10 +933,13 @@ const UpdateProduct = () => {
               
               <div className="border-t border-gray-200 pt-6">
                 <h5 className="text-md font-medium text-gray-900 mb-4">Add New Images</h5>
-                <ProductImageUpload
-                  onImageUpload={handleImageUpload}
-                  uploading={uploadingImages}
-                  maxImages={10}
+                <ImageUpload
+                  onImagesUploaded={handleImagesUploaded}
+                  multiple={true}
+                  maxFiles={10}
+                  showPreview={true}
+                  productTitle={editingProduct.title}
+                  isUpdate={true}
                 />
               </div>
             </div>
@@ -899,6 +981,11 @@ const UpdateProduct = () => {
                 <div>
                   <span className="font-medium text-gray-700">Images:</span>
                   <span className="ml-2 text-gray-900">{productImages.length} image{productImages.length !== 1 ? 's' : ''}</span>
+                  {hasUnsavedImageChanges && (
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      ✓ Saved to Database
+                    </span>
+                  )}
                 </div>
               </div>
               

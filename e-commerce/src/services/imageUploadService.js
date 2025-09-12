@@ -21,7 +21,7 @@ const getAuthHeaders = (currentUser, role) => {
 };
 
 // Upload multiple images
-export const uploadMultipleImages = async (imageFiles, currentUser, role, productTitle = '') => {
+export const uploadMultipleImages = async (imageFiles, currentUser, role, productTitle = '', isUpdate = false) => {
   try {
     const formData = new FormData();
     
@@ -34,6 +34,9 @@ export const uploadMultipleImages = async (imageFiles, currentUser, role, produc
     if (productTitle) {
       formData.append('product_title', productTitle);
     }
+    
+    // Add update flag to FormData
+    formData.append('is_update', isUpdate.toString());
     
     const response = await axios.post(
       `${API_BASE_URL}/upload/images/`,

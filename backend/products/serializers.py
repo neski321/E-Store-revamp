@@ -27,6 +27,7 @@ class ProductSerializer(serializers.ModelSerializer):
     dimensions = DimensionSerializer(required=False)
     id = serializers.ReadOnlyField()
     review_count = serializers.SerializerMethodField()
+    images = serializers.JSONField(required=False)
 
     class Meta:
         model = Product
@@ -108,6 +109,20 @@ class ProductSerializer(serializers.ModelSerializer):
     def validate_thumbnail(self, value):
         if value and not value.startswith('http'):
             raise serializers.ValidationError("Thumbnail must be a valid URL.")
+        return value
+    
+    def validate_images(self, value):
+        if value is not None:
+            # Handle both array and object formats for backward compatibility
+            if isinstance(value, list):
+                # Array format - keep as is (current standard)
+                return value
+            elif isinstance(value, dict) and 'urls' in value:
+                # Object with urls array - convert to array
+                return value['urls']
+            elif isinstance(value, dict):
+                # Object with keys like image_1, image_2 - convert to array
+                return list(value.values())
         return value
         
     def create(self, validated_data):

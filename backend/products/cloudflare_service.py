@@ -43,7 +43,7 @@ class CloudflareR2Service:
             print(f"Error initializing Cloudflare R2 client: {e}")
             self.s3_client = None
     
-    def generate_unique_filename(self, original_filename, folder='products', product_title=None):
+    def generate_unique_filename(self, original_filename, folder='products', product_title=None, update_tag=False):
         """Generate a unique filename for the uploaded file"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         unique_id = str(uuid.uuid4())[:8]
@@ -55,9 +55,18 @@ class CloudflareR2Service:
             clean_title = re.sub(r'[^a-zA-Z0-9\-_]', '_', product_title.strip())
             clean_title = re.sub(r'_+', '_', clean_title)  # Replace multiple underscores with single
             clean_title = clean_title[:50]  # Limit length to 50 characters
+            
+            # Add update tag if specified
+            if update_tag:
+                clean_title = f"{clean_title}_update"
+            
             return f"{folder}/{clean_title}_{timestamp}_{unique_id}{file_extension}"
         else:
-            return f"{folder}/{timestamp}_{unique_id}{file_extension}"
+            # Add update tag even without product title
+            if update_tag:
+                return f"{folder}/update_{timestamp}_{unique_id}{file_extension}"
+            else:
+                return f"{folder}/{timestamp}_{unique_id}{file_extension}"
     
     def optimize_image(self, image_file, max_width=1200, max_height=1200, quality=85):
         """Optimize image for web delivery"""
@@ -83,7 +92,7 @@ class CloudflareR2Service:
             print(f"Error optimizing image: {e}")
             return image_file
     
-    def upload_image(self, image_file, folder='products', optimize=True, product_title=None):
+    def upload_image(self, image_file, folder='products', optimize=True, product_title=None, update_tag=False):
         """Upload an image to Cloudflare R2"""
         if not self.is_configured or not self.s3_client:
             return {
@@ -93,7 +102,7 @@ class CloudflareR2Service:
         
         try:
             # Generate unique filename
-            filename = self.generate_unique_filename(image_file.name, folder, product_title)
+            filename = self.generate_unique_filename(image_file.name, folder, product_title, update_tag)
             
             # Optimize image if requested
             if optimize:
@@ -135,7 +144,7 @@ class CloudflareR2Service:
                 'error': str(e)
             }
     
-    def upload_multiple_images(self, image_files, folder='products', product_title=None):
+    def upload_multiple_images(self, image_files, folder='products', product_title=None, update_tag=False):
         """Upload multiple images to Cloudflare R2"""
         if not self.is_configured or not self.s3_client:
             return [{
@@ -147,7 +156,7 @@ class CloudflareR2Service:
         for i, image_file in enumerate(image_files):
             # Add image number to product title for multiple images
             title_with_number = f"{product_title}_{i+1}" if product_title else None
-            result = self.upload_image(image_file, folder, product_title=title_with_number)
+            result = self.upload_image(image_file, folder, product_title=title_with_number, update_tag=update_tag)
             results.append(result)
         return results
     
