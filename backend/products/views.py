@@ -210,9 +210,15 @@ def product_detail(request, pk):
                     elif isinstance(product.images, dict):
                         old_images = list(product.images.values())
                     
-                    # Get new images (should be array format)
-                    new_images = request.data.get('images', [])
-                    if not isinstance(new_images, list):
+                    # Get new images - handle both array and object formats
+                    new_images_data = request.data.get('images', [])
+                    if isinstance(new_images_data, list):
+                        new_images = new_images_data
+                    elif isinstance(new_images_data, dict) and 'urls' in new_images_data:
+                        new_images = new_images_data['urls']
+                    elif isinstance(new_images_data, dict):
+                        new_images = list(new_images_data.values())
+                    else:
                         new_images = []
                     
                     # Find images to delete
@@ -470,6 +476,7 @@ def upload_product_images(request):
         # Get images and product title from request
         images = request.FILES.getlist('images')
         product_title = request.data.get('product_title', '').strip()
+        is_update = request.data.get('is_update', 'false').lower() == 'true'
         
         if not images:
             return Response({'error': 'No images provided'}, status=status.HTTP_400_BAD_REQUEST)
@@ -494,7 +501,7 @@ def upload_product_images(request):
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         # Upload images to Cloudflare R2
-        upload_results = cloudflare_r2.upload_multiple_images(images, folder='products', product_title=product_title)
+        upload_results = cloudflare_r2.upload_multiple_images(images, folder='products', product_title=product_title, update_tag=is_update)
         
         # Check for upload errors
         failed_uploads = [result for result in upload_results if not result.get('success')]

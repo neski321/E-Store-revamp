@@ -12,7 +12,8 @@ const ImageUpload = ({
   maxFiles = 10,
   className = "",
   showPreview = true,
-  productTitle = ""
+  productTitle = "",
+  isUpdate = false
 }) => {
   const { currentUser, role } = useAuth();
   const [selectedFiles, setSelectedFiles] = useState([]);
@@ -78,7 +79,7 @@ const ImageUpload = ({
     try {
       let result;
       if (multiple) {
-        result = await uploadMultipleImages(selectedFiles, currentUser, role, productTitle);
+        result = await uploadMultipleImages(selectedFiles, currentUser, role, productTitle, isUpdate);
       } else {
         result = await uploadSingleImage(selectedFiles[0], currentUser, role, productTitle);
       }
