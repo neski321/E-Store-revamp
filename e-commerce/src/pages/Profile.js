@@ -7,7 +7,7 @@ import Footer from '../components/Footer';
 import AuthPromptModal from '../components/AuthPromptModal';
 
 function Profile() {
-  const { currentUser, updateProfile, getProfile } = useAuth();
+  const { currentUser, updateUserProfile, getProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'profile' });
@@ -159,7 +159,7 @@ function Profile() {
     setLoading(true);
     try {
       // Update profile with all information
-      await updateProfile({
+      await updateUserProfile({
         ...formData,
         sameAsBilling: sameAsBilling,
         updatedAt: new Date().toISOString()
@@ -194,7 +194,7 @@ function Profile() {
       await updateEmail(auth.currentUser, formData.newEmail);
       
       // Update profile in Firestore
-      await updateProfile({
+      await updateUserProfile({
         email: formData.newEmail,
         updatedAt: new Date().toISOString()
       });
