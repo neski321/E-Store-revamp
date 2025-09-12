@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import ProductReviews from '../components/ProductReviews';
+import ImageViewer from '../components/ImageViewer';
 import { auth, db } from '../firebaseConfig';
-import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where } from 'firebase/firestore';
 import ErrorDialog from '../components/ErrorDialog';
 import SuccessDialog from '../components/SuccessDialog';
 import AuthPromptModal from '../components/AuthPromptModal';
@@ -14,14 +15,16 @@ function ProductDetail() {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
   const [checkoutList, setCheckoutList] = useState([]);
+  const [favorites, setFavorites] = useState([]);
   const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
   const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'checkout' });
+  const [imageViewer, setImageViewer] = useState({ isOpen: false, images: [], currentIndex: 0 });
   const { currentUser } = useAuth();
 
-  const isLoggedIn = () => {
+  const isLoggedIn = useCallback(() => {
     return currentUser && !currentUser.isAnonymous;
-  };
+  }, [currentUser]);
 
   const closeErrorDialog = () => {
     setErrorDialog({ isOpen: false, title: '', message: '', details: '' });
@@ -35,7 +38,22 @@ function ProductDetail() {
     setAuthPromptModal({ isOpen: false, actionType: 'checkout' });
   };
 
-  const fetchProduct = async () => {
+  const openImageViewer = (images, startIndex = 0) => {
+    setImageViewer({
+      isOpen: true,
+      images: images.map((img, index) => ({
+        src: img,
+        alt: `${product.title} ${index + 1}`
+      })),
+      currentIndex: startIndex
+    });
+  };
+
+  const closeImageViewer = () => {
+    setImageViewer({ isOpen: false, images: [], currentIndex: 0 });
+  };
+
+  const fetchProduct = useCallback(async () => {
     try {
       const response = await fetch(`/api/products/${id}/`);
       if (!response.ok) {
@@ -52,17 +70,9 @@ function ProductDetail() {
         details: error.message
       });
     }
-  };
-
-  useEffect(() => {
-    // Fetch product details
-    fetchProduct();
-
-    // Load checkout list
-    loadCheckoutList();
   }, [id]);
 
-  const loadCheckoutList = async () => {
+  const loadCheckoutList = useCallback(async () => {
     const user = auth.currentUser;
     if (user) {
       try {
@@ -77,7 +87,34 @@ function ProductDetail() {
         setCheckoutList([]);
       }
     }
-  };
+  }, []);
+
+  const fetchFavorites = useCallback(async () => {
+    if (!isLoggedIn()) return;
+    
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const favoritesRef = collection(db, 'users', user.uid, 'favorites');
+        const querySnapshot = await getDocs(favoritesRef);
+        const favoriteIds = querySnapshot.docs.map(doc => doc.data().productId);
+        setFavorites(favoriteIds);
+      }
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    }
+  }, [currentUser, isLoggedIn]);
+
+  useEffect(() => {
+    // Fetch product details
+    fetchProduct();
+
+    // Load checkout list
+    loadCheckoutList();
+
+    // Load favorites
+    fetchFavorites();
+  }, [id, fetchProduct, loadCheckoutList, fetchFavorites]);
 
   const showAlert = (message, isError = false) => {
     if (isError) {
@@ -149,7 +186,40 @@ function ProductDetail() {
     }
   };
 
+  const toggleFavorite = async () => {
+    if (!isLoggedIn()) {
+      setAuthPromptModal({ isOpen: true, actionType: 'favorites' });
+      return;
+    }
+
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        const favoritesRef = collection(db, 'users', user.uid, 'favorites');
+        const q = query(favoritesRef, where('productId', '==', product.id));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+          // Add to favorites
+          await addDoc(favoritesRef, { productId: product.id });
+          setFavorites(prev => [...prev, product.id]);
+          showAlert('Added to favorites! ❤️');
+        } else {
+          // Remove from favorites
+          const docToDelete = querySnapshot.docs[0];
+          await deleteDoc(docToDelete.ref);
+          setFavorites(prev => prev.filter(id => id !== product.id));
+          showAlert('Removed from favorites! 💔');
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      showAlert('Failed to update favorites. Please try again.', true);
+    }
+  };
+
   const isInCheckout = checkoutList.includes(product?.id);
+  const isInFavorites = favorites.includes(product?.id);
 
   const renderStars = (rating) => {
     return [...Array(5)].map((_, i) => (
@@ -182,25 +252,86 @@ function ProductDetail() {
     }
     
     if (imageUrls.length > 0) {
+      const displayImages = imageUrls.slice(0, 4);
+      const remainingCount = imageUrls.length - 4;
+      
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {imageUrls.map((image, index) => (
-            <img 
-              key={index}
-              src={image} 
-              alt={`${product.title} ${index + 1}`} 
-              className="w-full h-64 object-cover rounded-lg shadow-md"
-            />
-          ))}
+        <div className="space-y-4">
+          {/* Main image grid - show up to 4 images */}
+          <div className="grid grid-cols-2 gap-4">
+            {displayImages.map((image, index) => (
+              <div 
+                key={index}
+                className="relative group cursor-pointer overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
+                onClick={() => openImageViewer(imageUrls, index)}
+              >
+                <img 
+                  src={image} 
+                  alt={`${product.title} ${index + 1}`} 
+                  className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {/* Show "+X more" if there are more than 4 images */}
+            {remainingCount > 0 && (
+              <div 
+                className="relative group cursor-pointer overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300 bg-gray-100 flex items-center justify-center"
+                onClick={() => openImageViewer(imageUrls, 4)}
+              >
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-gray-600 mb-2">+{remainingCount}</div>
+                  <div className="text-sm text-gray-500">more images</div>
+                </div>
+                {/* Hover overlay */}
+                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Click instruction */}
+          <p className="text-sm text-gray-500 text-center">
+            Click on any image to view in full size
+          </p>
         </div>
       );
     } else if (product?.thumbnail && product.thumbnail !== 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX') {
       return (
-        <img 
-          src={product.thumbnail} 
-          alt={product.title} 
-          className="w-full max-w-md h-auto rounded-lg shadow-md"
-        />
+        <div 
+          className="relative group cursor-pointer overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
+          onClick={() => openImageViewer([product.thumbnail], 0)}
+        >
+          <img 
+            src={product.thumbnail} 
+            alt={product.title} 
+            className="w-full max-w-md h-auto group-hover:scale-105 transition-transform duration-300"
+          />
+          {/* Hover overlay */}
+          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+              </svg>
+            </div>
+          </div>
+          <p className="text-sm text-gray-500 text-center mt-2">
+            Click to view in full size
+          </p>
+        </div>
       );
     } else {
       return (
@@ -245,6 +376,14 @@ function ProductDetail() {
         onClose={closeSuccessDialog}
         title={successDialog.title}
         message={successDialog.message}
+      />
+
+      {/* Image Viewer Modal */}
+      <ImageViewer
+        isOpen={imageViewer.isOpen}
+        onClose={closeImageViewer}
+        images={imageViewer.images}
+        currentIndex={imageViewer.currentIndex}
       />
 
       <div className="container mx-auto px-4 py-8">
@@ -310,6 +449,30 @@ function ProductDetail() {
                     } ${product.stock === 0 ? 'bg-gray-300 cursor-not-allowed' : ''}`}
                   >
                     {isInCheckout ? 'Remove from Checkout' : 'Add to Checkout'}
+                  </button>
+                  
+                  <button
+                    onClick={toggleFavorite}
+                    className={`w-full py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
+                      isInFavorites 
+                        ? 'bg-red-100 hover:bg-red-200 text-red-700 border border-red-300' 
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
+                    }`}
+                  >
+                    <svg 
+                      className={`w-5 h-5 ${isInFavorites ? 'fill-current' : ''}`} 
+                      fill={isInFavorites ? 'currentColor' : 'none'} 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" 
+                      />
+                    </svg>
+                    <span>{isInFavorites ? 'Remove from Favorites' : 'Add to Favorites'}</span>
                   </button>
                 </div>
               </div>
