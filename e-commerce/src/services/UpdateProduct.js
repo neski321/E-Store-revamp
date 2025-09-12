@@ -504,7 +504,7 @@ const UpdateProduct = () => {
 
   const revertImageChanges = async () => {
     try {
-      // Revert images to original state
+      // Revert images to original stat
       const imageUpdateData = {
         images: originalImages
       };
