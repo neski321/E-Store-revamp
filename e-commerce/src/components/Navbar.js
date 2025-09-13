@@ -3,19 +3,34 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { auth } from '../firebaseConfig';
 import AuthPromptModal from './AuthPromptModal';
+import ProfilePicture from './ProfilePicture';
 
 function Navbar() {
-  const { logout, role } = useAuth();
+  const { logout, role, getProfile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [profilePicture, setProfilePicture] = useState(null);
   const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'signup' });
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(user => {
+    const unsubscribe = auth.onAuthStateChanged(async user => {
       setCurrentUser(user);
+      if (user) {
+        // Load user profile picture
+        try {
+          const profile = await getProfile();
+          if (profile && profile.profilePicture) {
+            setProfilePicture(profile.profilePicture);
+          }
+        } catch (error) {
+          console.error('Error loading profile picture:', error);
+        }
+      } else {
+        setProfilePicture(null);
+      }
     });
     return unsubscribe;
   }, []);
@@ -173,9 +188,11 @@ function Navbar() {
                   onClick={toggleDropdown}
                   className="flex items-center space-x-2 bg-gray-50 hover:bg-gray-100 rounded-full px-3 py-2 transition-colors duration-200"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-full flex items-center justify-center">
-                    <span className="text-white font-medium text-sm">{getUserInitial()}</span>
-                  </div>
+                  <ProfilePicture 
+                    profilePicture={profilePicture}
+                    size="w-8 h-8"
+                    customInitials={getUserInitial()}
+                  />
                   <span className="text-sm font-medium text-gray-700 hidden lg:block">
                     {getUserDisplayName()}
                   </span>

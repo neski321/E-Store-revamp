@@ -7,6 +7,8 @@ import { collection, addDoc, query, where, getDocs, doc, getDoc, writeBatch } fr
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import AuthPromptModal from '../components/AuthPromptModal';
+import ProfilePictureUpload from '../components/ProfilePictureUpload';
+import ProfilePicture from '../components/ProfilePicture';
 
 function Profile() {
   const { currentUser, updateUserProfile, getProfile } = useAuth();
@@ -25,6 +27,7 @@ function Profile() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [profilePicture, setProfilePicture] = useState(null);
   
   // Form state to persist data across tab switches
   const [formData, setFormData] = useState({
@@ -57,6 +60,11 @@ function Profile() {
     return currentUser && !currentUser.isAnonymous;
   }, [currentUser]);
 
+  // Handle profile picture update
+  const handleProfilePictureUpdate = (newPictureUrl) => {
+    setProfilePicture(newPictureUrl);
+  };
+
   // Load profile data function
   const loadProfile = useCallback(async () => {
     if (currentUser) {
@@ -87,6 +95,9 @@ function Profile() {
             billingZip: profile.billingZip || '',
             billingCountry: profile.billingCountry || 'US'
           });
+
+          // Set profile picture
+          setProfilePicture(profile.profilePicture || null);
           
           // Check if billing and shipping are the same
           const isSameAddress = profile.shippingAddressLine1 === profile.billingAddressLine1 &&
@@ -678,6 +689,17 @@ function Profile() {
             {activeTab === 'personal' && (
               <div className="space-y-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-6">Personal Information</h3>
+                
+                {/* Profile Picture Section */}
+                <div className="mb-8 p-6 bg-gray-50 rounded-lg">
+                  <h4 className="text-md font-medium text-gray-900 mb-4">Profile Picture</h4>
+                  <ProfilePictureUpload
+                    currentProfilePicture={profilePicture}
+                    onPictureUpdate={handleProfilePictureUpdate}
+                    size="w-32 h-32"
+                  />
+                </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-2">
@@ -1294,12 +1316,12 @@ function Profile() {
                     <p className="text-sm text-yellow-700 mb-3">
                       Your personal information is securely stored and will only be used for order processing and customer service.
                     </p>
-                    <button
-                      type="button"
+                    <Link
+                      to="/privacy-policy"
                       className="text-sm text-yellow-800 underline hover:no-underline"
                     >
                       View Privacy Policy
-                    </button>
+                    </Link>
                   </div>
 
                   {/* Account Deletion - Danger Zone */}

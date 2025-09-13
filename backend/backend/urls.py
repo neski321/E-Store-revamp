@@ -25,7 +25,7 @@ from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from products.views import (
     product_list, product_detail, categories, create_category, brands, add_review, review_detail,
-    upload_product_images, upload_single_image, delete_image,
+    upload_product_images, upload_single_image, delete_image, upload_profile_picture,
     create_payment_intent, send_order_confirmation, webhook
 )
 
@@ -47,6 +47,7 @@ urlpatterns = [
     # Image upload endpoints
     path('api/upload/images/', upload_product_images, name='upload_product_images'),
     path('api/upload/image/', upload_single_image, name='upload_single_image'),
+    path('api/upload-profile-picture/', upload_profile_picture, name='upload_profile_picture'),
     path('api/delete/image/', delete_image, name='delete_image'),
     
     # Payment endpoints
