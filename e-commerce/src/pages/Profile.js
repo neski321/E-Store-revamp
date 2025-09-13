@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { auth } from '../firebaseConfig';
-import { signInWithEmailAndPassword, updateEmail, updatePassword } from 'firebase/auth';
+import { auth, db } from '../firebaseConfig';
+import { signInWithEmailAndPassword, updateEmail, updatePassword, deleteUser, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
+import { collection, addDoc, query, where, getDocs, doc, getDoc, writeBatch } from 'firebase/firestore';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import AuthPromptModal from '../components/AuthPromptModal';
@@ -13,6 +15,16 @@ function Profile() {
   const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'profile' });
   const [sameAsBilling, setSameAsBilling] = useState(false);
   const [activeTab, setActiveTab] = useState('personal');
+  const [adminRequestStatus, setAdminRequestStatus] = useState(null); // null, 'pending', 'approved', 'rejected'
+  const [userRole, setUserRole] = useState('user');
+  const [adminRequest, setAdminRequest] = useState(null);
+  const [cooldownEndTime, setCooldownEndTime] = useState(null);
+  const [timeRemaining, setTimeRemaining] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
   
   // Form state to persist data across tab switches
   const [formData, setFormData] = useState({
@@ -169,8 +181,9 @@ function Profile() {
     } catch (error) {
       setMessage('Failed to update profile');
       console.error('Error updating profile:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   // Handle change email
@@ -219,8 +232,9 @@ function Profile() {
       } else {
         setMessage('Failed to update email address');
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   // Handle reset password
@@ -267,8 +281,325 @@ function Profile() {
       } else {
         setMessage('Failed to update password');
       }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
+  };
+
+  // Calculate time remaining for cooldown
+  const calculateTimeRemaining = useCallback((endTime) => {
+    const now = new Date().getTime();
+    const end = new Date(endTime).getTime();
+    const difference = end - now;
+    
+    if (difference <= 0) {
+      return null; // Cooldown period has ended
+    }
+    
+    const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+    
+    return { days, hours, minutes, seconds, total: difference };
+  }, []);
+
+  // Check if user can submit a new request (cooldown period check)
+  const canSubmitNewRequest = useCallback(() => {
+    if (!cooldownEndTime) return true;
+    const remaining = calculateTimeRemaining(cooldownEndTime);
+    return remaining === null;
+  }, [cooldownEndTime, calculateTimeRemaining]);
+
+  // Check admin request status and user role
+  const checkAdminRequestStatus = useCallback(async () => {
+    if (!currentUser) return;
+    
+    try {
+      // Get user's current role
+      const userRef = doc(db, 'users', currentUser.uid);
+      const userDoc = await getDoc(userRef);
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setUserRole(userData.role || 'user');
+      }
+      
+      // Get admin request status
+      const requestsRef = collection(db, 'adminRequests');
+      const q = query(requestsRef, where('userId', '==', currentUser.uid));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const latestRequest = querySnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt))[0];
+        
+        setAdminRequest(latestRequest);
+        setAdminRequestStatus(latestRequest.status);
+        console.log('Admin request data:', latestRequest);
+        console.log('Admin note:', latestRequest.adminNote);
+        
+        // Calculate cooldown end time (1 week from when request was processed)
+        if (latestRequest.status === 'rejected' || latestRequest.status === 'revoked') {
+          const processedAt = latestRequest.processedAt || latestRequest.requestedAt;
+          const cooldownEnd = new Date(processedAt);
+          cooldownEnd.setDate(cooldownEnd.getDate() + 7); // Add 7 days
+          setCooldownEndTime(cooldownEnd.toISOString());
+        } else {
+          setCooldownEndTime(null);
+        }
+      } else {
+        setAdminRequest(null);
+        setAdminRequestStatus(null);
+        setCooldownEndTime(null);
+      }
+    } catch (error) {
+      console.error('Error checking admin request status:', error);
+    }
+  }, [currentUser]);
+
+  // Request admin access
+  const handleRequestAdminAccess = async () => {
+    if (!currentUser) return;
+    
+    // Check if user has filled out first name and last name
+    if (!formData.firstName || !formData.lastName || formData.firstName.trim() === '' || formData.lastName.trim() === '') {
+      setMessage('Please fill out your first name and last name in Personal Information before requesting admin access');
+      setTimeout(() => setMessage(''), 5000);
+      // Switch to personal information tab
+      setActiveTab('personal');
+      return;
+    }
+    
+    // Check cooldown period
+    if (!canSubmitNewRequest()) {
+      const remaining = calculateTimeRemaining(cooldownEndTime);
+      if (remaining) {
+        setMessage(`You can submit a new request in ${remaining.days}d ${remaining.hours}h ${remaining.minutes}m`);
+        setTimeout(() => setMessage(''), 5000);
+        return;
+      }
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Check if user already has a pending request
+      const requestsRef = collection(db, 'adminRequests');
+      const q = query(requestsRef, where('userId', '==', currentUser.uid));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const latestRequest = querySnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt))[0];
+        
+        if (latestRequest.status === 'pending') {
+          setMessage('You have a pending admin request');
+          setTimeout(() => setMessage(''), 3000);
+          return;
+        }
+      }
+      
+      // Create new admin request
+      await addDoc(requestsRef, {
+        userId: currentUser.uid,
+        userEmail: currentUser.email,
+        userName: `${formData.firstName} ${formData.lastName}`.trim() || 'Unknown User',
+        status: 'pending',
+        requestedAt: new Date().toISOString(),
+        reason: 'User requested admin access through profile settings'
+      });
+      
+      setAdminRequestStatus('pending');
+      setMessage('Admin access request submitted successfully!');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error requesting admin access:', error);
+      setMessage('Failed to submit admin request');
+      setTimeout(() => setMessage(''), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load admin request status on component mount
+  useEffect(() => {
+    checkAdminRequestStatus();
+  }, [checkAdminRequestStatus]);
+
+  // Safety timeout to reset loading state if it gets stuck
+  useEffect(() => {
+    if (loading) {
+      const timeout = setTimeout(() => {
+        console.warn('Loading state timeout - resetting loading state');
+        setLoading(false);
+      }, 30000); // 30 second timeout
+
+      return () => clearTimeout(timeout);
+    }
+  }, [loading]);
+
+  // Update time remaining every second when in cooldown
+  useEffect(() => {
+    if (!cooldownEndTime) {
+      setTimeRemaining(null);
+      return;
+    }
+
+    const updateTimeRemaining = () => {
+      const remaining = calculateTimeRemaining(cooldownEndTime);
+      setTimeRemaining(remaining);
+    };
+
+    // Update immediately
+    updateTimeRemaining();
+
+    // Update every second
+    const interval = setInterval(updateTimeRemaining, 1000);
+
+    return () => clearInterval(interval);
+  }, [cooldownEndTime, calculateTimeRemaining]);
+
+  // Delete all user data from Firestore
+  const deleteUserDataFromFirestore = useCallback(async (userId) => {
+    const batch = writeBatch(db);
+    
+    try {
+      // Delete user document
+      const userRef = doc(db, 'users', userId);
+      batch.delete(userRef);
+      
+      // Delete user's orders
+      const ordersRef = collection(db, 'users', userId, 'orders');
+      const ordersQuery = query(ordersRef);
+      const ordersSnapshot = await getDocs(ordersQuery);
+      ordersSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+      
+      // Delete user's favorites
+      const favoritesRef = collection(db, 'users', userId, 'favorites');
+      const favoritesQuery = query(favoritesRef);
+      const favoritesSnapshot = await getDocs(favoritesQuery);
+      favoritesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+      
+      // Delete user's checkout data
+      const checkoutRef = doc(db, 'checkout', userId);
+      batch.delete(checkoutRef);
+      
+      // Delete user's checkout items
+      const checkoutItemsRef = collection(db, 'checkout', userId, 'items');
+      const checkoutItemsQuery = query(checkoutItemsRef);
+      const checkoutItemsSnapshot = await getDocs(checkoutItemsQuery);
+      checkoutItemsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+      
+      // Delete user's contact messages
+      const contactMessagesRef = collection(db, 'contactMessages', userId, 'messages');
+      const contactMessagesQuery = query(contactMessagesRef);
+      const contactMessagesSnapshot = await getDocs(contactMessagesQuery);
+      contactMessagesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+      
+      // Delete user's contact messages folder (top-level document)
+      const contactMessagesFolderRef = doc(db, 'contactMessages', userId);
+      batch.delete(contactMessagesFolderRef);
+      
+      // Delete user's admin requests
+      const adminRequestsRef = collection(db, 'adminRequests');
+      const adminRequestsQuery = query(adminRequestsRef, where('userId', '==', userId));
+      const adminRequestsSnapshot = await getDocs(adminRequestsQuery);
+      adminRequestsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+      
+      // Commit all deletions
+      await batch.commit();
+      console.log('All user data deleted from Firestore');
+    } catch (error) {
+      console.error('Error deleting user data from Firestore:', error);
+      throw error;
+    }
+  }, []);
+
+  // Clear delete error
+  const clearDeleteError = () => {
+    setDeleteError(null);
+  };
+
+  // Handle account deletion
+  const handleDeleteAccount = async () => {
+    if (!currentUser) return;
+    
+    // Clear any previous errors
+    setDeleteError(null);
+    
+    // Validate confirmation text
+    if (deleteConfirmText !== 'DELETE') {
+      setDeleteError({
+        title: 'Invalid Confirmation',
+        message: 'Please type "DELETE" exactly to confirm account deletion.',
+        details: `You typed: "${deleteConfirmText}"`
+      });
+      return;
+    }
+    
+    if (!deletePassword) {
+      setDeleteError({
+        title: 'Password Required',
+        message: 'Please enter your current password to confirm account deletion.',
+        details: 'This is required for security verification.'
+      });
+      return;
+    }
+    
+    try {
+      setIsDeleting(true);
+      
+      // Re-authenticate user
+      const credential = EmailAuthProvider.credential(currentUser.email, deletePassword);
+      await reauthenticateWithCredential(currentUser, credential);
+      
+      // Delete all user data from Firestore
+      await deleteUserDataFromFirestore(currentUser.uid);
+      
+      // Delete Firebase Auth account
+      await deleteUser(currentUser);
+      
+      // Success - user will be automatically signed out and redirected
+      setMessage('Account deleted successfully');
+      
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      if (error.code === 'auth/wrong-password') {
+        setDeleteError({
+          title: 'Incorrect Password',
+          message: 'The password you entered is incorrect.',
+          details: 'Please check your password and try again. Make sure Caps Lock is not enabled.'
+        });
+      } else if (error.code === 'auth/too-many-requests') {
+        setDeleteError({
+          title: 'Too Many Attempts',
+          message: 'You have made too many failed attempts.',
+          details: 'Please wait a few minutes before trying again.'
+        });
+      } else if (error.code === 'auth/user-not-found') {
+        setDeleteError({
+          title: 'Account Not Found',
+          message: 'Your account could not be found.',
+          details: 'Please refresh the page and try again.'
+        });
+      } else if (error.code === 'auth/network-request-failed') {
+        setDeleteError({
+          title: 'Network Error',
+          message: 'Unable to connect to the server.',
+          details: 'Please check your internet connection and try again.'
+        });
+      } else {
+        setDeleteError({
+          title: 'Deletion Failed',
+          message: 'Failed to delete your account.',
+          details: error.message || 'Please try again later or contact support if the problem persists.'
+        });
+      }
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const tabs = [
@@ -730,6 +1061,233 @@ function Profile() {
                     </div>
                   )}
 
+                  {/* Admin Access Request - Only show for non-admin users */}
+                  {!currentUser?.isAnonymous && userRole !== 'admin' && (
+                    <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                      <h4 className="font-medium text-indigo-900 mb-3">Admin Access Management</h4>
+                      
+                      {/* Current Role Status */}
+                      <div className="mb-4 p-3 bg-blue-100 border border-blue-300 rounded-md">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <svg className="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-sm font-medium text-blue-800">
+                              Current Role: <span className="font-bold capitalize">{userRole}</span>
+                            </span>
+                          </div>
+                          {userRole === 'admin' && (
+                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                              ✓ Admin Access Active
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {userRole === 'user' && (
+                        <>
+                          <p className="text-sm text-indigo-700 mb-4">
+                            Request admin access to manage products, orders, and other administrative functions.
+                          </p>
+                          
+                          {adminRequestStatus === null && (
+                            <div>
+                              {/* Personal Information Requirement Warning */}
+                              {(!formData.firstName || !formData.lastName || formData.firstName.trim() === '' || formData.lastName.trim() === '') && (
+                                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                                  <div className="flex items-center">
+                                    <svg className="w-4 h-4 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="font-medium">Personal Information Required</span>
+                                  </div>
+                                  <p className="mt-1">
+                                    Please complete your first name and last name in the Personal Information tab before requesting admin access.
+                                  </p>
+                                </div>
+                              )}
+                              
+                              <button
+                                type="button"
+                                onClick={handleRequestAdminAccess}
+                                disabled={loading || !formData.firstName || !formData.lastName || formData.firstName.trim() === '' || formData.lastName.trim() === ''}
+                                className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                              >
+                                {loading ? 'Submitting...' : 'Request Admin Access'}
+                              </button>
+                            </div>
+                          )}
+                          
+                          {adminRequestStatus === 'pending' && (
+                            <div className="p-3 bg-yellow-100 border border-yellow-300 rounded-md">
+                              <div className="flex items-center">
+                                <svg className="w-5 h-5 text-yellow-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-sm font-medium text-yellow-800">Waiting on decision</span>
+                              </div>
+                              <p className="text-xs text-yellow-700 mt-1">
+                                Your admin access request is being reviewed by administrators. Please wait for a decision.
+                                {adminRequest?.requestedAt && (
+                                  <span className="block mt-1">
+                                    Requested: {new Date(adminRequest.requestedAt).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </p>
+                              <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                                <strong>Note:</strong> You cannot submit another request while this one is pending review.
+                              </div>
+                            </div>
+                          )}
+                          
+                          {adminRequestStatus === 'rejected' && (
+                            <div className="p-3 bg-red-100 border border-red-300 rounded-md">
+                              <div className="flex items-center">
+                                <svg className="w-5 h-5 text-red-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-sm font-medium text-red-800">Admin request denied</span>
+                              </div>
+                              <p className="text-xs text-red-700 mt-1">
+                                Your admin access request has been denied. You can submit a new request after a 1-week cooldown period.
+                                {adminRequest?.processedAt && (
+                                  <span className="block mt-1">
+                                    Denied: {new Date(adminRequest.processedAt).toLocaleDateString()}
+                                  </span>
+                                )}
+                                {adminRequest?.adminNote && adminRequest.adminNote.trim() !== '' && (
+                                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs">
+                                    <div className="flex items-start">
+                                      <svg className="w-4 h-4 text-red-600 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                      </svg>
+                                      <div>
+                                        <span className="font-medium text-red-800">Reason:</span>
+                                        <p className="text-red-700 mt-1">{adminRequest.adminNote}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </p>
+                              
+                              {/* Cooldown Status */}
+                              {timeRemaining ? (
+                                <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+                                  <div className="flex items-center">
+                                    <svg className="w-4 h-4 text-red-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="font-medium">Cooldown Period Active</span>
+                                  </div>
+                                  <p className="mt-1">
+                                    You can submit a new request in: <span className="font-bold">{timeRemaining.days}d {timeRemaining.hours}h {timeRemaining.minutes}m {timeRemaining.seconds}s</span>
+                                  </p>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={handleRequestAdminAccess}
+                                  disabled={loading}
+                                  className="mt-2 w-full bg-indigo-600 text-white py-2 px-4 rounded-md font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                                >
+                                  {loading ? 'Submitting...' : 'Submit New Request'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          
+                          {adminRequestStatus === 'revoked' && (
+                            <div className="p-3 bg-orange-100 border border-orange-300 rounded-md">
+                              <div className="flex items-center">
+                                <svg className="w-5 h-5 text-orange-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-sm font-medium text-orange-800">Admin access revoked</span>
+                              </div>
+                              <p className="text-xs text-orange-700 mt-1">
+                                Your admin access has been revoked by an administrator. You can request access again after a 1-week cooldown period.
+                                {adminRequest?.processedAt && (
+                                  <span className="block mt-1">
+                                    Revoked: {new Date(adminRequest.processedAt).toLocaleDateString()}
+                                  </span>
+                                )}
+                                {adminRequest?.adminNote && adminRequest.adminNote.trim() !== '' && (
+                                  <div className="mt-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs">
+                                    <div className="flex items-start">
+                                      <svg className="w-4 h-4 text-orange-600 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                      </svg>
+                                      <div>
+                                        <span className="font-medium text-orange-800">Reason:</span>
+                                        <p className="text-orange-700 mt-1">{adminRequest.adminNote}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </p>
+                              
+                              {/* Cooldown Status */}
+                              {timeRemaining ? (
+                                <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-800">
+                                  <div className="flex items-center">
+                                    <svg className="w-4 h-4 text-orange-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="font-medium">Cooldown Period Active</span>
+                                  </div>
+                                  <p className="mt-1">
+                                    You can submit a new request in: <span className="font-bold">{timeRemaining.days}d {timeRemaining.hours}h {timeRemaining.minutes}m {timeRemaining.seconds}s</span>
+                                  </p>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={handleRequestAdminAccess}
+                                  disabled={loading}
+                                  className="mt-2 w-full bg-indigo-600 text-white py-2 px-4 rounded-md font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                                >
+                                  {loading ? 'Submitting...' : 'Request Access Again'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+                      
+                    </div>
+                  )}
+
+                  {/* Admin Status - Only show for admin users */}
+                  {!currentUser?.isAnonymous && userRole === 'admin' && (
+                    <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <h4 className="font-medium text-green-900 mb-3">Admin Status</h4>
+                      
+                      <div className="p-3 bg-green-100 border border-green-300 rounded-md">
+                        <div className="flex items-center">
+                          <svg className="w-5 h-5 text-green-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-sm font-medium text-green-800">Admin access active</span>
+                        </div>
+                        <p className="text-xs text-green-700 mt-1">
+                          You have full administrative privileges. Access the admin dashboard to manage the platform.
+                          {adminRequest?.processedAt && (
+                            <span className="block mt-1">
+                              Approved: {new Date(adminRequest.processedAt).toLocaleDateString()}
+                            </span>
+                          )}
+                        </p>
+                        <Link
+                          to="/admin"
+                          className="mt-2 inline-block bg-green-600 text-white py-2 px-4 rounded-md font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+                        >
+                          Go to Admin Dashboard
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Privacy & Security */}
                   <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <h4 className="font-medium text-yellow-900 mb-2">Privacy & Security</h4>
@@ -741,6 +1299,21 @@ function Profile() {
                       className="text-sm text-yellow-800 underline hover:no-underline"
                     >
                       View Privacy Policy
+                    </button>
+                  </div>
+
+                  {/* Account Deletion - Danger Zone */}
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <h4 className="font-medium text-red-900 mb-2">Danger Zone</h4>
+                    <p className="text-sm text-red-700 mb-4">
+                      Permanently delete your account and all associated data. This action cannot be undone.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteModal(true)}
+                      className="bg-red-600 text-white py-2 px-4 rounded-md font-medium hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                    >
+                      Delete Account
                     </button>
                   </div>
                 </div>
@@ -761,6 +1334,137 @@ function Profile() {
         </div>
       </div>
       <Footer />
+
+      {/* Account Deletion Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0">
+                  <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-lg font-medium text-gray-900">Delete Account</h3>
+                </div>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-4">
+                  This will permanently delete your account and all associated data including:
+                </p>
+                <ul className="text-sm text-gray-600 list-disc list-inside mb-4 space-y-1">
+                  <li>Profile information</li>
+                  <li>Order history</li>
+                  <li>Favorites and wishlists</li>
+                  <li>Checkout data</li>
+                  <li>Contact messages</li>
+                  <li>Admin requests</li>
+                </ul>
+                <p className="text-sm text-red-600 font-medium">
+                  This action cannot be undone!
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="deletePassword" className="block text-sm font-medium text-gray-700 mb-1">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    id="deletePassword"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
+                      deleteError && deleteError.title === 'Incorrect Password' 
+                        ? 'border-red-300 bg-red-50' 
+                        : 'border-gray-300'
+                    }`}
+                    placeholder="Enter your current password"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="deleteConfirm" className="block text-sm font-medium text-gray-700 mb-1">
+                    Type "DELETE" to confirm
+                  </label>
+                  <input
+                    type="text"
+                    id="deleteConfirm"
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 ${
+                      deleteError && deleteError.title === 'Invalid Confirmation' 
+                        ? 'border-red-300 bg-red-50' 
+                        : 'border-gray-300'
+                    }`}
+                    placeholder="Type DELETE to confirm"
+                  />
+                </div>
+              </div>
+
+              {/* Error Dialog */}
+              {deleteError && (
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-red-800">
+                        {deleteError.title}
+                      </h3>
+                      <div className="mt-2 text-sm text-red-700">
+                        <p>{deleteError.message}</p>
+                        {deleteError.details && (
+                          <p className="mt-1 text-xs text-red-600">{deleteError.details}</p>
+                        )}
+                      </div>
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={clearDeleteError}
+                          className="text-sm font-medium text-red-800 hover:text-red-700 focus:outline-none focus:underline"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setDeletePassword('');
+                    setDeleteConfirmText('');
+                    setDeleteError(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={isDeleting || deletePassword === '' || deleteConfirmText !== 'DELETE'}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete Account'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

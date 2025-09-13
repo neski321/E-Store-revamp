@@ -103,9 +103,9 @@ function Footer() {
                 </a>
               </li>
               <li>
-                <a href="/faq" className="text-gray-400 hover:text-white transition-colors duration-200">
+                <Link to="/faq" className="text-gray-400 hover:text-white transition-colors duration-200">
                   FAQ
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -141,15 +141,15 @@ function Footer() {
               © {currentYear} E-Store. All rights reserved.
             </div>
             <div className="flex space-x-6 text-sm">
-              <a href="/privacy" className="text-gray-400 hover:text-white transition-colors duration-200">
+              <Link to="/privacy-policy" className="text-gray-400 hover:text-white transition-colors duration-200">
                 Privacy Policy
-              </a>
-              <a href="/terms" className="text-gray-400 hover:text-white transition-colors duration-200">
+              </Link>
+              <Link to="/terms-of-service" className="text-gray-400 hover:text-white transition-colors duration-200">
                 Terms of Service
-              </a>
-              <a href="/cookies" className="text-gray-400 hover:text-white transition-colors duration-200">
+              </Link>
+              <Link to="/cookie-policy" className="text-gray-400 hover:text-white transition-colors duration-200">
                 Cookie Policy
-              </a>
+              </Link>
             </div>
           </div>
         </div>

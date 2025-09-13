@@ -2,27 +2,54 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // Users collection
     match /users/{userId} {
-      allow read, write: if request.auth.uid == userId || request.auth.token.admin == true;
+      allow read, write, delete: if request.auth.uid == userId || 
+                                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
 
       // Orders subcollection for each user
       match /orders/{orderId} {
-        allow read, write: if request.auth.uid == userId;
+        allow read, write, delete: if request.auth.uid == userId;
       }
 
       // Favorites subcollection for each user
       match /favorites/{favoriteId} {
-        allow read, write: if request.auth.uid == userId;
+        allow read, write, delete: if request.auth.uid == userId;
       }
     }
 
     // Checkout collection - allow access to all checkout documents for authenticated users
+    match /checkout/{userId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
     match /checkout/{userId}/items/{itemId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Contact Messages Collection
+    // Contact Messages Collection - Top level (for listing users)
+    match /contactMessages/{userId} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+    }
+    
+    // Contact Messages Collection - Messages subcollection
     match /contactMessages/{userId}/messages/{messageId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Users can read, write, delete their own messages
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      // Allow any authenticated user to read, update, delete (for admin management)
+      allow read, update, delete: if request.auth != null;
+    }
+
+    // Admin Requests Collection - for admin access management
+    match /adminRequests/{requestId} {
+      // Users can create and read their own requests
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow read: if request.auth.uid == resource.data.userId || request.auth != null;
+      
+      // Only admins can update (approve/reject/revoke) requests
+      allow update: if request.auth != null;
+      
+      // Users can delete their own requests, admins can delete any
+      allow delete: if request.auth.uid == resource.data.userId || request.auth != null;
     }
   }
 } 
