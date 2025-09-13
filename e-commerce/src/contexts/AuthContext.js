@@ -121,6 +121,26 @@ export function AuthProvider({ children }) {
     await updateDoc(userDocRef, data);
   }
 
+  // Update Profile Picture
+  async function updateProfilePicture(imageUrl) {
+    if (!currentUser) return;
+    const userDocRef = doc(db, 'users', currentUser.uid);
+    await updateDoc(userDocRef, {
+      profilePicture: imageUrl,
+      profilePictureUpdatedAt: new Date().toISOString()
+    });
+  }
+
+  // Remove Profile Picture
+  async function removeProfilePicture() {
+    if (!currentUser) return;
+    const userDocRef = doc(db, 'users', currentUser.uid);
+    await updateDoc(userDocRef, {
+      profilePicture: null,
+      profilePictureUpdatedAt: new Date().toISOString()
+    });
+  }
+
   // Update Firebase Auth Profile
   async function updateAuthProfile(profileData) {
     if (!currentUser) return;
@@ -262,6 +282,8 @@ export function AuthProvider({ children }) {
     resetPassword,
     sendVerificationEmail,
     updateUserProfile,
+    updateProfilePicture,
+    removeProfilePicture,
     updateAuthProfile,
     getProfile,
     fetchBillingAndShippingInfo,

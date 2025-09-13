@@ -115,6 +115,18 @@ def product_list(request):
     if search:
         products = products.filter(title__icontains=search)
     
+    # Add support for filtering by multiple IDs
+    ids = request.GET.get('ids')
+    if ids:
+        try:
+            # Split comma-separated IDs and convert to integers
+            id_list = [int(id.strip()) for id in ids.split(',') if id.strip()]
+            if id_list:
+                products = products.filter(id__in=id_list)
+        except ValueError:
+            # If any ID is not a valid integer, ignore the filter
+            pass
+    
     # Apply ordering
     sort_by = request.GET.get('sort', 'id')
     order = request.GET.get('order', 'desc')
@@ -582,6 +594,70 @@ def upload_single_image(request):
         
     except Exception as e:
         print(f"Error in upload_single_image: {e}")
+        return Response({
+            'error': 'Internal server error',
+            'details': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def upload_profile_picture(request):
+    """Upload a profile picture to Cloudflare R2"""
+    try:
+        # Check if user is authenticated
+        user_id = request.headers.get('X-User-ID')
+        user_role = request.headers.get('X-User-Role', 'user')
+        
+        if not user_id:
+            return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Check if user has permission
+        if user_role not in ['admin', 'user']:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get image from request
+        image = request.FILES.get('image')
+        folder = request.data.get('folder', 'profile-pictures')
+        
+        if not image:
+            return Response({'error': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate image size (10MB limit)
+        max_size = 10 * 1024 * 1024  # 10MB in bytes
+        if image.size > max_size:
+            return Response({
+                'error': 'Image is too large. Maximum size is 10MB.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate file type
+        allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+        if image.content_type not in allowed_types:
+            return Response({
+                'error': 'Invalid image format. Only JPEG, PNG, and WebP are allowed.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Upload image to Cloudflare R2 with user-specific naming
+        upload_result = cloudflare_r2.upload_image(
+            image, 
+            folder=folder, 
+            product_title=f"user_{user_id}",
+            optimize=True
+        )
+        
+        if not upload_result.get('success'):
+            return Response({
+                'error': 'Failed to upload profile picture',
+                'details': upload_result.get('error')
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'success': True,
+            'message': 'Profile picture uploaded successfully',
+            'url': upload_result['url'],
+            'filename': upload_result['filename']
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        print(f"Error in upload_profile_picture: {e}")
         return Response({
             'error': 'Internal server error',
             'details': str(e)

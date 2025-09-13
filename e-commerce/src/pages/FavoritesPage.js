@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { auth, db } from '../firebaseConfig';
-import { collection, getDocs, deleteDoc, query, where } from "firebase/firestore";
+import { collection, getDocs, deleteDoc, addDoc, query, where } from "firebase/firestore";
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
@@ -11,6 +11,7 @@ const FavoritesPage = () => {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [authPromptModal, setAuthPromptModal] = useState({ isOpen: false, actionType: 'favorites' });
   const { currentUser } = useAuth();
 
@@ -42,6 +43,9 @@ const FavoritesPage = () => {
 
         // Fetch product details from the API
         const apiUrl = `/api/products/?ids=${favoriteIds.join(',')}`;
+        console.log('Fetching favorites with URL:', apiUrl);
+        console.log('Favorite IDs:', favoriteIds);
+        
         const response = await fetch(apiUrl);
         
         if (!response.ok) {
@@ -49,10 +53,12 @@ const FavoritesPage = () => {
         }
         
         const data = await response.json();
+        console.log('API response:', data);
         const products = data.results || data;
         
         // Filter to only include products that are still in favorites
         const favoriteProducts = products.filter(product => favoriteIds.includes(product.id));
+        console.log('Filtered favorite products:', favoriteProducts);
         setFavorites(favoriteProducts);
       }
     } catch (error) {
@@ -87,6 +93,32 @@ const FavoritesPage = () => {
         } catch (error) {
             console.error("Error removing product from favorites:", error);
             alert("Failed to remove from favorites.");
+        }
+    };
+
+    const addToCheckout = async (product) => {
+        if (!currentUser) {
+            setAuthPromptModal({ isOpen: true, actionType: 'checkout' });
+            return;
+        }
+
+        try {
+            const cartRef = collection(db, 'checkout', currentUser.uid, 'items');
+            await addDoc(cartRef, {
+                productId: product.id,
+                name: product.title,
+                price: product.price,
+                thumbnail: product.thumbnail,
+                quantity: 1,
+                addedAt: new Date()
+            });
+            
+            setSuccessMessage(`${product.title} added to checkout! 🛒`);
+            setTimeout(() => setSuccessMessage(''), 3000);
+        } catch (error) {
+            console.error('Error adding to checkout:', error);
+            setError('Failed to add product to checkout. Please try again.');
+            setTimeout(() => setError(''), 5000);
         }
     };
 
@@ -146,14 +178,31 @@ const FavoritesPage = () => {
             />
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+                {/* Success Message */}
+                {successMessage && (
+                    <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg text-center">
+                        {successMessage}
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="text-center mb-12">
                     <h1 className="text-3xl md:text-4xl font-display font-bold text-gray-900 mb-4">
                         My Favorites
                     </h1>
-                    <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                    <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
                         Your saved products and items you love
                     </p>
+                    <button
+                        onClick={fetchFavorites}
+                        disabled={loading}
+                        className="inline-flex items-center px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                    >
+                        <svg className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        {loading ? 'Refreshing...' : 'Refresh Favorites'}
+                    </button>
                 </div>
 
                 {/* Favorites Grid */}
@@ -268,10 +317,11 @@ const FavoritesPage = () => {
                                             View Details
                                         </Link>
                                         <button
-                                            onClick={() => removeFromFavorites(product.id)}
-                                            className="flex-1 bg-red-500 text-white py-2 px-4 rounded-lg font-medium hover:bg-red-600 transition-colors duration-200"
+                                            onClick={() => addToCheckout(product)}
+                                            disabled={product.stock <= 0}
+                                            className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                                         >
-                                            Remove
+                                            {product.stock <= 0 ? 'Out of Stock' : 'Add to Checkout'}
                                         </button>
                                     </div>
                                 </div>
