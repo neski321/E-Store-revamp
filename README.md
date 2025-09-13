@@ -276,6 +276,7 @@ When running in development mode:
 
 ### Products
 - `GET /api/products/` - List products with filtering and pagination
+- `GET /api/products/?ids=1,2,3` - Get specific products by IDs (comma-separated)
 - `GET /api/products/{id}/` - Get product details
 - `POST /api/products/` - Create new product (Admin only)
 - `PUT /api/products/{id}/` - Update product (Admin only)
@@ -286,6 +287,7 @@ When running in development mode:
 
 ### Image Management
 - `POST /api/products/upload-images/` - Upload product images to Cloudflare R2
+- `POST /api/upload-profile-picture/` - Upload user profile picture to Cloudflare R2
 - `DELETE /api/products/delete-image/{filename}/` - Delete specific image
 - `GET /api/products/{id}/images/` - Get product images
 
@@ -449,6 +451,14 @@ For support and questions:
 - ✅ **Security**: Enhanced authentication and data protection
 - ✅ **Documentation**: Comprehensive setup and deployment guides
 
+### Version 2.3 - Profile & Favorites Enhancement (Latest)
+- ✅ **Profile Picture System**: Complete profile picture upload and management
+- ✅ **Cloudflare Integration**: Profile pictures stored in Cloudflare R2
+- ✅ **Favorites Fix**: Resolved favorites page display issues
+- ✅ **Enhanced UI**: Improved user interface with better navigation
+- ✅ **API Improvements**: Added support for multiple product ID filtering
+- ✅ **User Experience**: Streamlined checkout process from favorites
+
 ### Key Improvements in Latest Version
 - **Multi-step Product Creation**: Intuitive wizard for adding products
 - **Image Management**: Upload, delete, and manage product images
@@ -459,6 +469,40 @@ For support and questions:
 - **Enhanced Validation**: Real-time form validation and error handling
 - **Mobile Optimization**: Fully responsive design for all devices
 
+### Today's Updates (Latest Release)
+- **Profile Picture Upload**: Users can now upload and manage profile pictures
+  - 10MB upload limit for profile pictures
+  - Automatic image optimization and resizing
+  - Fallback to user initials when no picture is set
+  - Real-time preview and error handling
+  - Integration with existing Cloudflare R2 service
+
+- **Favorites Page Enhancement**: 
+  - Fixed favorites not displaying issue
+  - Added "Add to Checkout" button replacing "Remove" button
+  - Enhanced user experience with better navigation
+  - Added refresh functionality for favorites
+  - Improved error handling and user feedback
+
+- **Backend API Improvements**:
+  - Added support for filtering products by multiple IDs (`/api/products/?ids=1,2,3`)
+  - New profile picture upload endpoint (`/api/upload-profile-picture/`)
+  - Enhanced authentication headers for all API calls
+  - Improved error handling and validation
+
+- **UI/UX Improvements**:
+  - Profile pictures display in navbar with fallback to initials
+  - Enhanced favorites page with better visual design
+  - Added success/error messaging throughout the app
+  - Improved responsive design for all components
+  - Better loading states and user feedback
+
+- **Security & Performance**:
+  - Enhanced authentication for all API endpoints
+  - Improved image upload validation and security
+  - Better error handling and user feedback
+  - Optimized image processing and delivery
+
 ---
 
-**Note**: This is a production-ready e-commerce application with all essential features implemented. The application includes advanced admin features, image management, and comprehensive user experience improvements. Make sure to configure all environment variables and external services before deployment.
+**Note**: This is a production-ready e-commerce application with all essential features implemented. The application includes advanced admin features, image management, profile picture system, and comprehensive user experience improvements. Make sure to configure all environment variables and external services before deployment.
