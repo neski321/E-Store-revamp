@@ -12,6 +12,7 @@ function Login() {
   const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
   const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
   if (currentUser) {
@@ -184,11 +185,27 @@ function Login() {
                     </div>
                     <input
                       ref={passwordRef}
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       required
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                       placeholder="Enter your password"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      {showPassword ? (
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 </div>
 
@@ -303,6 +320,28 @@ function Login() {
                   <Link to="/signup" className="text-blue-600 hover:text-blue-700 font-medium transition-colors">
                     Sign up here
                   </Link>
+                </p>
+              </div>
+
+              {/* Legal Links */}
+              <div className="text-center mt-4">
+                <p className="text-xs text-gray-500">
+                  By signing in, you agree to our{' '}
+                  <Link to="/privacy-policy" className="text-blue-600 hover:text-blue-700 underline">
+                    Privacy Policy
+                  </Link>
+                  {' '}and{' '}
+          <Link to="/faq" className="text-blue-600 hover:text-blue-700 underline">
+            FAQ
+          </Link>
+          {' '}and{' '}
+          <Link to="/cookie-policy" className="text-blue-600 hover:text-blue-700 underline">
+            Cookie Policy
+          </Link>
+          {' '}and{' '}
+          <Link to="/terms-of-service" className="text-blue-600 hover:text-blue-700 underline">
+            Terms of Service
+          </Link>
                 </p>
               </div>
             </div>

@@ -21,6 +21,10 @@ import UpdateProduct from './services/UpdateProduct';
 import CheckoutPage from './pages/CheckoutPage';
 import ReviewModeration from './pages/ReviewModeration';
 import OrderHistory from './pages/OrderHistory';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import FAQ from './pages/FAQ';
+import CookiePolicy from './pages/CookiePolicy';
+import TermsOfService from './pages/TermsOfService';
 
 function App() {
   return (
@@ -29,6 +33,10 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/password-reset" element={<PasswordReset />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/faq" element={<FAQ />} />
+        <Route path="/cookie-policy" element={<CookiePolicy />} />
+        <Route path="/terms-of-service" element={<TermsOfService />} />
         <Route path="/category/:category" element={<CategoryList />} />
         <Route path="/categories" element={<AllCategories />} />
         <Route path="/products/:id" element={<ProductDetail />} />
