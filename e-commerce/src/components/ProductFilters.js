@@ -34,6 +34,18 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
     }
   }, [filters.category]);
 
+  const handleFilterChange = useCallback((name, value) => {
+    const newFilters = { ...filters, [name]: value };
+    
+    // Clear brand when category changes
+    if (name === 'category') {
+      newFilters.brand = '';
+    }
+    
+    setFilters(newFilters);
+    onFiltersChange(newFilters);
+  }, [filters, onFiltersChange]);
+
   // Debounce title filter
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -43,7 +55,7 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
     }, 500); // 500ms delay
 
     return () => clearTimeout(timer);
-  }, [titleDebounce]);
+  }, [titleDebounce, filters.title, handleFilterChange]);
 
   const fetchCategories = async () => {
     try {
@@ -74,18 +86,6 @@ const ProductFilters = ({ onFiltersChange, onSortChange, onClearFilters }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFilterChange = (name, value) => {
-    const newFilters = { ...filters, [name]: value };
-    
-    // Clear brand when category changes
-    if (name === 'category') {
-      newFilters.brand = '';
-    }
-    
-    setFilters(newFilters);
-    onFiltersChange(newFilters);
   };
 
   const handleTitleChange = (value) => {

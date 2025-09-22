@@ -90,7 +90,7 @@ const SearchPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, sortBy, sortOrder]);
+  }, [searchQuery, sortBy, sortOrder, filters]);
 
   const fetchFavorites = useCallback(async () => {
     if (!currentUser) return;

@@ -41,4 +41,9 @@ command = "bash railway-build.sh"
 # - REACT_APP_FIREBASE_APP_ID
 # - REACT_APP_STRIPE_PUBLISHABLE_KEY
 # - ALLOWED_HOSTS
-# - CORS_ALLOWED_ORIGINS 
+# - CORS_ALLOWED_ORIGINS
+
+# Node.js Build Options (Optional - helps suppress warnings during build)
+# - NODE_OPTIONS (set to "--no-deprecation" to suppress Node.js deprecation warnings)
+# - GENERATE_SOURCEMAP (set to "false" to disable source map generation)
+# - DISABLE_ESLINT_PLUGIN (set to "true" to disable ESLint during build) 

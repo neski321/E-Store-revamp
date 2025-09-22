@@ -146,7 +146,6 @@ export const validateImageFile = (file) => {
 // Validate multiple image files
 export const validateImageFiles = (files) => {
   const maxFiles = 10;
-  const results = [];
   
   if (files.length > maxFiles) {
     return { valid: false, error: `Maximum ${maxFiles} files allowed` };

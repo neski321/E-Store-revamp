@@ -33,7 +33,7 @@ function Navbar() {
       }
     });
     return unsubscribe;
-  }, []);
+  }, [getProfile]);
 
   async function handleLogout() {
     try {

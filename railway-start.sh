@@ -19,6 +19,9 @@ pip install gunicorn
 export PYTHONUNBUFFERED=1
 export PYTHONDONTWRITEBYTECODE=1
 
+# Set Node.js options for production (in case any Node.js processes are spawned)
+export NODE_OPTIONS="--no-deprecation"
+
 # Start Django server with gunicorn for production
 echo "🔧 Starting Gunicorn with optimized settings..."
 gunicorn backend.wsgi:application \

@@ -103,7 +103,7 @@ function ProductDetail() {
     } catch (error) {
       console.error('Error fetching favorites:', error);
     }
-  }, [currentUser, isLoggedIn]);
+  }, [isLoggedIn]);
 
   useEffect(() => {
     // Fetch product details

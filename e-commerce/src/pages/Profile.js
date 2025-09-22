@@ -8,7 +8,6 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import AuthPromptModal from '../components/AuthPromptModal';
 import ProfilePictureUpload from '../components/ProfilePictureUpload';
-import ProfilePicture from '../components/ProfilePicture';
 
 function Profile() {
   const { currentUser, updateUserProfile, getProfile } = useAuth();
