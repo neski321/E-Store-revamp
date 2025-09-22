@@ -6,6 +6,11 @@ echo "🚀 Railway Build Script - Building E-Commerce App..."
 export PYTHONUNBUFFERED=1
 export PYTHONDONTWRITEBYTECODE=1
 
+# Set Node.js options to suppress deprecation warnings
+export NODE_OPTIONS="--no-deprecation"
+export GENERATE_SOURCEMAP=false
+export DISABLE_ESLINT_PLUGIN=true
+
 # Install Python dependencies
 echo "📦 Installing Python dependencies..."
 cd backend
@@ -17,7 +22,8 @@ cd ..
 echo "⚛️ Building React frontend..."
 cd e-commerce
 npm install --legacy-peer-deps
-npm run build
+echo "🔧 Building with Node.js options to suppress warnings..."
+NODE_OPTIONS="--no-deprecation" GENERATE_SOURCEMAP=false npm run build
 cd ..
 
 # Run Django migrations

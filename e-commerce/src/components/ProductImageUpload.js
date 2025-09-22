@@ -86,7 +86,7 @@ const ProductImageUpload = ({ onImagesSelected, initialImages = [], productTitle
                 <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
                   <img
                     src={imageUrl}
-                    alt={`Product image ${index + 1}`}
+                    alt={`Product ${index + 1}`}
                     className="w-full h-full object-cover"
                   />
                 </div>

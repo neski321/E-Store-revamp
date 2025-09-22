@@ -25,7 +25,6 @@ const UpdateProduct = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [showProductSelection, setShowProductSelection] = useState(false);
   const [productImages, setProductImages] = useState([]);
-  const [uploadingImages, setUploadingImages] = useState(false);
   const [hasUnsavedImageChanges, setHasUnsavedImageChanges] = useState(false);
   const [originalImages, setOriginalImages] = useState([]);
   
@@ -383,7 +382,6 @@ const UpdateProduct = () => {
   const handleImagesUploaded = async (uploadedUrls) => {
     if (!editingProduct || !uploadedUrls || uploadedUrls.length === 0) return;
     
-    setUploadingImages(true);
     try {
       const updatedImages = [...productImages, ...uploadedUrls];
       
@@ -419,8 +417,6 @@ const UpdateProduct = () => {
         message: 'Images were uploaded but failed to save to database. Please try again.',
         details: dbError.response?.data?.message || dbError.message
       });
-    } finally {
-      setUploadingImages(false);
     }
   };
 
