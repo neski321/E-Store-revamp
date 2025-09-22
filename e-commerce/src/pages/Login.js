@@ -329,15 +329,7 @@ function Login() {
                   By signing in, you agree to our{' '}
                   <Link to="/privacy-policy" className="text-blue-600 hover:text-blue-700 underline">
                     Privacy Policy
-                  </Link>
-                  {' '}and{' '}
-          <Link to="/faq" className="text-blue-600 hover:text-blue-700 underline">
-            FAQ
-          </Link>
-          {' '}and{' '}
-          <Link to="/cookie-policy" className="text-blue-600 hover:text-blue-700 underline">
-            Cookie Policy
-          </Link>
+                  </Link>                  
           {' '}and{' '}
           <Link to="/terms-of-service" className="text-blue-600 hover:text-blue-700 underline">
             Terms of Service

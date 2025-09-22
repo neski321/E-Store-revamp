@@ -324,14 +324,7 @@ function Signup() {
                   <Link to="/privacy-policy" className="text-purple-600 hover:text-purple-700 underline">
                     Privacy Policy
                   </Link>
-                  {' '}and{' '}
-          <Link to="/faq" className="text-purple-600 hover:text-purple-700 underline">
-            FAQ
-          </Link>
-          {' '}and{' '}
-          <Link to="/cookie-policy" className="text-purple-600 hover:text-purple-700 underline">
-            Cookie Policy
-          </Link>
+                  
           {' '}and{' '}
           <Link to="/terms-of-service" className="text-purple-600 hover:text-purple-700 underline">
             Terms of Service
