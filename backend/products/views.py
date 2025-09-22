@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.core.mail import send_mail
+from .email_service import EmailService
 from django.template.loader import render_to_string
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -817,6 +818,58 @@ def send_order_confirmation(request):
         )
         
         return JsonResponse({'success': True})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def send_welcome_email(request):
+    """Send welcome email to new user"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        user_email = data.get('userEmail')
+        display_name = data.get('displayName', '')
+        
+        if not user_email:
+            return JsonResponse({'error': 'User email is required'}, status=400)
+        
+        # Send welcome email
+        success = EmailService.send_welcome_email(user_email, display_name)
+        
+        if success:
+            return JsonResponse({'message': 'Welcome email sent successfully'})
+        else:
+            return JsonResponse({'error': 'Failed to send welcome email'}, status=500)
+            
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def send_verification_reminder(request):
+    """Send email verification reminder"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Only POST method allowed'}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        user_email = data.get('userEmail')
+        display_name = data.get('displayName', '')
+        
+        if not user_email:
+            return JsonResponse({'error': 'User email is required'}, status=400)
+        
+        # Send verification reminder
+        success = EmailService.send_verification_reminder_email(user_email, display_name)
+        
+        if success:
+            return JsonResponse({'message': 'Verification reminder sent successfully'})
+        else:
+            return JsonResponse({'error': 'Failed to send verification reminder'}, status=500)
+            
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 

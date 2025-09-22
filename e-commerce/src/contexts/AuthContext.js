@@ -52,6 +52,13 @@ export function AuthProvider({ children }) {
       emailVerified: false,
       createdAt: Timestamp.now()
     });
+
+    // Send welcome email (don't wait for it to complete)
+    sendWelcomeEmail(email, displayName || user.displayName).catch(error => {
+      console.error('Failed to send welcome email:', error);
+      // Don't throw error - welcome email is not critical for signup
+    });
+
     return userCredential;
   }
 
@@ -210,6 +217,62 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // Send Welcome Email
+  async function sendWelcomeEmail(userEmail, displayName) {
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+      const response = await fetch(`${API_BASE_URL}/send-welcome-email/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userEmail,
+          displayName
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Welcome email sent:', result);
+      return result;
+    } catch (error) {
+      console.error('Error sending welcome email:', error);
+      throw error;
+    }
+  }
+
+  // Send Verification Reminder
+  async function sendVerificationReminder(userEmail, displayName) {
+    try {
+      const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+      const response = await fetch(`${API_BASE_URL}/send-verification-reminder/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userEmail,
+          displayName
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Verification reminder sent:', result);
+      return result;
+    } catch (error) {
+      console.error('Error sending verification reminder:', error);
+      throw error;
+    }
+  }
+
   // Re-authenticate user (for sensitive operations)
   async function reauthenticateUser(password) {
     if (!currentUser || !currentUser.email) {
@@ -289,7 +352,9 @@ export function AuthProvider({ children }) {
     fetchBillingAndShippingInfo,
     placeOrder,
     sendContactMessage,
-    reauthenticateUser
+    reauthenticateUser,
+    sendWelcomeEmail,
+    sendVerificationReminder
   };
 
   return (

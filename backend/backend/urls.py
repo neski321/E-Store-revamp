@@ -26,7 +26,7 @@ from rest_framework.routers import DefaultRouter
 from products.views import (
     product_list, product_detail, categories, create_category, brands, add_review, review_detail,
     upload_product_images, upload_single_image, delete_image, upload_profile_picture,
-    create_payment_intent, send_order_confirmation, webhook
+    create_payment_intent, send_order_confirmation, webhook, send_welcome_email, send_verification_reminder
 )
 
 router = DefaultRouter()
@@ -54,6 +54,10 @@ urlpatterns = [
     path('api/create-payment-intent/', create_payment_intent, name='create_payment_intent'),
     path('api/send-order-confirmation/', send_order_confirmation, name='send_order_confirmation'),
     path('api/webhook/', webhook, name='webhook'),
+    
+    # Email endpoints
+    path('api/send-welcome-email/', send_welcome_email, name='send_welcome_email'),
+    path('api/send-verification-reminder/', send_verification_reminder, name='send_verification_reminder'),
 ]
 
 # Serve static files FIRST (before React catch-all)

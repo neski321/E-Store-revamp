@@ -110,6 +110,20 @@ ROOT_URLCONF = "backend.urls"
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() == 'true'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@yourstore.com')
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Frontend URL for email links
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
 # Add React build files to static files
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, '../e-commerce/build/static'),

@@ -43,6 +43,16 @@ command = "bash railway-build.sh"
 # - ALLOWED_HOSTS
 # - CORS_ALLOWED_ORIGINS
 
+# Email Configuration (Required for welcome emails)
+# - EMAIL_HOST (SMTP server, e.g., smtp.gmail.com)
+# - EMAIL_PORT (SMTP port, usually 587 for TLS or 465 for SSL)
+# - EMAIL_USE_TLS (set to "True" for TLS encryption)
+# - EMAIL_USE_SSL (set to "True" for SSL encryption)
+# - EMAIL_HOST_USER (your email address)
+# - EMAIL_HOST_PASSWORD (your email password or app password)
+# - DEFAULT_FROM_EMAIL (sender email address)
+# - FRONTEND_URL (your frontend URL for email links)
+
 # Node.js Build Options (Optional - helps suppress warnings during build)
 # - NODE_OPTIONS (set to "--no-deprecation" to suppress Node.js deprecation warnings)
 # - GENERATE_SOURCEMAP (set to "false" to disable source map generation)
