@@ -25,6 +25,8 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import FAQ from './pages/FAQ';
 import CookiePolicy from './pages/CookiePolicy';
 import TermsOfService from './pages/TermsOfService';
+import Unsubscribe from './pages/Unsubscribe';
+import NewsletterManagement from './pages/NewsletterManagement';
 
 function App() {
   return (
@@ -37,6 +39,7 @@ function App() {
         <Route path="/faq" element={<FAQ />} />
         <Route path="/cookie-policy" element={<CookiePolicy />} />
         <Route path="/terms-of-service" element={<TermsOfService />} />
+        <Route path="/unsubscribe" element={<Unsubscribe />} />
         <Route path="/category/:category" element={<CategoryList />} />
         <Route path="/categories" element={<AllCategories />} />
         <Route path="/products/:id" element={<ProductDetail />} />
@@ -56,6 +59,7 @@ function App() {
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/review-moderation" element={<ReviewModeration />} />
           <Route path="/orders" element={<OrderHistory />} />
+          <Route path="/newsletter-management" element={<NewsletterManagement />} />
         </Route>
       </Routes>
     </div>

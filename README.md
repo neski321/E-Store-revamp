@@ -57,6 +57,9 @@ A comprehensive, production-ready e-commerce platform built with React frontend,
   - Category management
   - User management and analytics
   - Bulk operations support
+  - Newsletter management system
+  - Subscriber analytics and management
+  - Custom newsletter composition
 
 - **Image Management System**
   - Cloudflare R2 integration for image storage
@@ -72,6 +75,17 @@ A comprehensive, production-ready e-commerce platform built with React frontend,
   - Search result optimization
   - Product selection modals
   - Search history and suggestions
+
+- **Newsletter System**
+  - Complete newsletter subscription management
+  - Footer newsletter signup with validation
+  - Admin newsletter management dashboard
+  - Subscriber analytics and export functionality
+  - Custom newsletter composition and sending
+  - Email cooldown system to prevent spam
+  - Unsubscribe functionality with confirmation
+  - HTML and plain text newsletter support
+  - Welcome email system for new subscribers
 
 - **Security & Validation**
   - Comprehensive input validation
@@ -178,6 +192,12 @@ FIREBASE_CLIENT_X509_CERT_URL=your_cert_url
 STRIPE_SECRET_KEY=your_stripe_secret_key
 STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
 DEFAULT_FROM_EMAIL=noreply@yourstore.com
+# Gmail SMTP Configuration
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your_gmail_address@gmail.com
+EMAIL_HOST_PASSWORD=your_gmail_app_password
 CLOUDFLARE_R2_ACCESS_KEY_ID=your_r2_access_key
 CLOUDFLARE_R2_SECRET_ACCESS_KEY=your_r2_secret_key
 CLOUDFLARE_R2_BUCKET_NAME=your_r2_bucket_name
@@ -207,7 +227,19 @@ python manage.py createsuperuser
 4. Set up payment methods and currencies
 5. Test with Stripe test mode first
 
-### 8. Cloudflare R2 Configuration
+### 8. Gmail SMTP Configuration
+
+1. Create a Gmail account or use existing Gmail account
+2. Enable 2-Factor Authentication on your Gmail account
+3. Generate an App Password for the application:
+   - Go to Google Account settings
+   - Navigate to Security → 2-Step Verification → App passwords
+   - Generate a new app password for "Mail"
+   - Use this app password in EMAIL_HOST_PASSWORD
+4. Configure the email settings in your backend environment variables
+5. Test email sending with the provided test scripts
+
+### 9. Cloudflare R2 Configuration
 
 1. Create a Cloudflare account at [Cloudflare Dashboard](https://dash.cloudflare.com/)
 2. Set up R2 Object Storage
@@ -272,6 +304,31 @@ When running in development mode:
 - Address management
 - Account security settings
 
+## 📧 Newsletter Management System
+
+### Newsletter Features
+- **Footer Subscription**: Seamless newsletter signup in website footer
+- **Email Validation**: Real-time email validation and error handling
+- **Welcome Emails**: Automated welcome emails for new subscribers
+- **Unsubscribe Links**: Easy unsubscribe functionality with confirmation
+- **Admin Dashboard**: Complete newsletter management interface
+- **Subscriber Analytics**: Detailed statistics and export functionality
+
+### Admin Newsletter Management
+- **Subscriber Overview**: View all subscribers with detailed information
+- **Custom Newsletters**: Compose and send custom newsletters to specific subscribers
+- **Bulk Operations**: Unsubscribe multiple users with confirmation
+- **Export Data**: Export subscriber data to CSV format
+- **Real-time Stats**: Live subscriber count and analytics
+- **Email Templates**: Professional HTML email templates
+
+### Email System
+- **Cooldown System**: Intelligent email timing to prevent spam
+- **HTML Support**: Rich HTML newsletters with plain text fallback
+- **Professional Templates**: Responsive email templates
+- **Error Handling**: Comprehensive error handling and user feedback
+- **Threading Support**: Non-blocking email sending with threading
+
 ## 📱 API Endpoints
 
 ### Products
@@ -323,6 +380,14 @@ When running in development mode:
 - `DELETE /api/user/favorites/{id}/` - Remove product from favorites
 - `GET /api/user/favorites/` - Get user favorites
 
+### Newsletter Management
+- `POST /api/newsletter/subscribe/` - Subscribe to newsletter
+- `POST /api/newsletter/unsubscribe/` - Unsubscribe from newsletter
+- `GET /api/newsletter/check/` - Check subscription status
+- `GET /api/newsletter/subscribers/` - Get all subscribers (Admin only)
+- `POST /api/newsletter/admin-unsubscribe/` - Admin unsubscribe user (Admin only)
+- `POST /api/newsletter/send-to-subscriber/` - Send newsletter to specific subscriber (Admin only)
+
 ## 🛡️ Security Features
 
 - **Input Validation**: Comprehensive form validation
@@ -333,13 +398,33 @@ When running in development mode:
 
 ## 📧 Email Configuration
 
-The application sends emails for:
+The application uses **Gmail SMTP** for reliable email delivery and sends emails for:
 - Order confirmations
 - Password reset links
 - Email verification
 - Account notifications
+- **Welcome emails** (sent automatically to new users)
+- Newsletter welcome emails
+- Newsletter subscriptions
+- Custom newsletters to subscribers
 
-Configure your email settings in the backend environment variables.
+### Email Features
+- **Gmail SMTP Integration**: Reliable email delivery through Gmail's SMTP servers
+- **Welcome Emails**: Automatically sent to new users upon account creation with professional HTML templates
+- **Newsletter Welcome**: Sent when users subscribe to newsletter with intelligent timing
+- **Email Cooldown System**: Prevents duplicate emails with intelligent timing controls
+- **HTML Support**: Rich HTML email templates with fallback to plain text
+- **Unsubscribe Links**: Automatic unsubscribe links in all newsletters
+- **Admin Notifications**: Email notifications for admin actions
+- **Professional Templates**: Responsive email templates with company branding
+
+### Gmail SMTP Setup
+- **SMTP Server**: smtp.gmail.com (port 587 with TLS)
+- **Authentication**: Gmail App Password (not regular password)
+- **Security**: 2-Factor Authentication required for App Password generation
+- **Reliability**: Gmail's robust infrastructure ensures high deliverability
+
+Configure your Gmail SMTP settings in the backend environment variables.
 
 ## 🚀 Deployment
 
@@ -362,6 +447,12 @@ CLOUDFLARE_R2_BUCKET_NAME=your_production_bucket
 CLOUDFLARE_R2_ENDPOINT_URL=your_production_endpoint
 FIREBASE_PROJECT_ID=your_production_firebase_project
 DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+# Gmail SMTP Configuration for Production
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your_production_gmail@gmail.com
+EMAIL_HOST_PASSWORD=your_production_gmail_app_password
 ```
 
 ### Deployment Checklist
@@ -371,6 +462,8 @@ DEFAULT_FROM_EMAIL=noreply@yourdomain.com
 - [ ] Configure Firebase production project
 - [ ] Set up Stripe production account
 - [ ] Configure Cloudflare R2 production bucket
+- [ ] **Set up Gmail SMTP with App Password**
+- [ ] **Test email sending functionality**
 - [ ] Test all integrations
 - [ ] Set up monitoring and logging
 - [ ] Configure custom domain (optional)
@@ -451,7 +544,7 @@ For support and questions:
 - ✅ **Security**: Enhanced authentication and data protection
 - ✅ **Documentation**: Comprehensive setup and deployment guides
 
-### Version 2.3 - Profile & Favorites Enhancement (Latest)
+### Version 2.3 - Profile & Favorites Enhancement
 - ✅ **Profile Picture System**: Complete profile picture upload and management
 - ✅ **Cloudflare Integration**: Profile pictures stored in Cloudflare R2
 - ✅ **Favorites Fix**: Resolved favorites page display issues
@@ -459,7 +552,22 @@ For support and questions:
 - ✅ **API Improvements**: Added support for multiple product ID filtering
 - ✅ **User Experience**: Streamlined checkout process from favorites
 
+### Version 2.4 - Newsletter Management System (Latest)
+- ✅ **Complete Newsletter System**: Full newsletter subscription and management
+- ✅ **Admin Newsletter Dashboard**: Professional admin interface for newsletter management
+- ✅ **Subscriber Analytics**: Detailed subscriber statistics and export functionality
+- ✅ **Custom Newsletter Composition**: Rich text editor for creating custom newsletters
+- ✅ **Email Cooldown System**: Intelligent email timing to prevent spam
+- ✅ **Unsubscribe Management**: Admin can unsubscribe users with confirmation
+- ✅ **Footer Integration**: Seamless newsletter signup in website footer
+- ✅ **Welcome Email System**: Automated welcome emails for new subscribers
+
 ### Key Improvements in Latest Version
+- **Newsletter Management**: Complete newsletter subscription and management system
+- **Admin Newsletter Dashboard**: Professional interface for managing subscribers
+- **Email System**: Advanced email system with cooldown and spam prevention
+- **Custom Newsletter Composition**: Rich text editor for creating newsletters
+- **Subscriber Analytics**: Detailed analytics and export functionality
 - **Multi-step Product Creation**: Intuitive wizard for adding products
 - **Image Management**: Upload, delete, and manage product images
 - **Smart Search**: Advanced search with auto-complete and filtering
@@ -469,40 +577,55 @@ For support and questions:
 - **Enhanced Validation**: Real-time form validation and error handling
 - **Mobile Optimization**: Fully responsive design for all devices
 
-### Today's Updates (Latest Release)
-- **Profile Picture Upload**: Users can now upload and manage profile pictures
-  - 10MB upload limit for profile pictures
-  - Automatic image optimization and resizing
-  - Fallback to user initials when no picture is set
-  - Real-time preview and error handling
-  - Integration with existing Cloudflare R2 service
+### Newsletter Management System (Latest Release)
+- **Complete Newsletter System**: Full newsletter subscription and management functionality
+  - Newsletter subscription from website footer with validation
+  - Admin newsletter management dashboard with subscriber analytics
+  - Custom newsletter composition with HTML and plain text support
+  - Email cooldown system to prevent spam and duplicate emails
+  - Unsubscribe functionality with admin management capabilities
+  - Welcome email system for new subscribers with intelligent timing
 
-- **Favorites Page Enhancement**: 
-  - Fixed favorites not displaying issue
-  - Added "Add to Checkout" button replacing "Remove" button
-  - Enhanced user experience with better navigation
-  - Added refresh functionality for favorites
-  - Improved error handling and user feedback
+- **Admin Newsletter Dashboard**:
+  - Professional interface for managing newsletter subscribers
+  - Subscriber analytics with total, active, and inactive counts
+  - Export functionality to CSV for subscriber data
+  - Send custom newsletters to specific subscribers
+  - Unsubscribe users with confirmation modal
+  - Real-time subscriber statistics and management
+
+- **Email System Enhancements**:
+  - **Gmail SMTP Integration** for reliable email delivery
+  - **Automatic Welcome Emails** sent to new users upon account creation
+  - Advanced email service with cooldown and timing controls
+  - HTML and plain text newsletter support
+  - Automatic unsubscribe links in all newsletters
+  - Welcome email system with intelligent delay timing
+  - Email validation and error handling
+  - Professional email templates with responsive design
 
 - **Backend API Improvements**:
-  - Added support for filtering products by multiple IDs (`/api/products/?ids=1,2,3`)
-  - New profile picture upload endpoint (`/api/upload-profile-picture/`)
-  - Enhanced authentication headers for all API calls
-  - Improved error handling and validation
+  - New newsletter subscription endpoints (`/api/newsletter/`)
+  - Admin newsletter management endpoints
+  - Email service integration with cooldown system
+  - Enhanced authentication for admin-only features
+  - Comprehensive error handling and validation
 
 - **UI/UX Improvements**:
-  - Profile pictures display in navbar with fallback to initials
-  - Enhanced favorites page with better visual design
-  - Added success/error messaging throughout the app
-  - Improved responsive design for all components
-  - Better loading states and user feedback
+  - Newsletter signup form in website footer
+  - Professional newsletter management interface
+  - Custom newsletter composition modal
+  - Real-time validation and user feedback
+  - Responsive design for all newsletter features
+  - Loading states and success/error messaging
 
 - **Security & Performance**:
-  - Enhanced authentication for all API endpoints
-  - Improved image upload validation and security
-  - Better error handling and user feedback
-  - Optimized image processing and delivery
+  - Admin-only access to newsletter management features
+  - Email cooldown system to prevent spam
+  - Comprehensive input validation
+  - Secure API endpoints with proper authentication
+  - Optimized email sending with threading support
 
 ---
 
-**Note**: This is a production-ready e-commerce application with all essential features implemented. The application includes advanced admin features, image management, profile picture system, and comprehensive user experience improvements. Make sure to configure all environment variables and external services before deployment.
+**Note**: This is a production-ready e-commerce application with all essential features implemented. The application includes advanced admin features, image management, profile picture system, complete newsletter management system, and comprehensive user experience improvements. Make sure to configure all environment variables and external services before deployment.

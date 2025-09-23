@@ -14,8 +14,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .models import Product, Review
-from .serializers import ProductSerializer, ReviewSerializer
+from .models import Product, Review, NewsletterSubscription
+from .serializers import ProductSerializer, ReviewSerializer, NewsletterSubscriptionSerializer
 from .cloudflare_service import cloudflare_r2
 import json
 
@@ -875,6 +875,88 @@ def send_verification_reminder(request):
 
 @csrf_exempt
 @require_http_methods(["POST"])
+def update_stock_after_order(request):
+    """Update product stock after successful order completion"""
+    try:
+        data = json.loads(request.body)
+        order_items = data.get('orderItems', [])
+        
+        if not order_items:
+            return JsonResponse({'error': 'No order items provided'}, status=400)
+        
+        updated_products = []
+        failed_updates = []
+        
+        for item in order_items:
+            product_id = item.get('productId')
+            quantity = item.get('quantity', 1)
+            
+            if not product_id or quantity <= 0:
+                failed_updates.append({
+                    'productId': product_id,
+                    'error': 'Invalid product ID or quantity'
+                })
+                continue
+            
+            try:
+                # Get the product
+                product = Product.objects.get(id=product_id)
+                
+                # Check if sufficient stock is available
+                if product.stock < quantity:
+                    failed_updates.append({
+                        'productId': product_id,
+                        'productName': product.title,
+                        'requestedQuantity': quantity,
+                        'availableStock': product.stock,
+                        'error': 'Insufficient stock'
+                    })
+                    continue
+                
+                # Update stock
+                product.stock -= quantity
+                product.save(update_fields=['stock', 'updated_at'])
+                
+                updated_products.append({
+                    'productId': product_id,
+                    'productName': product.title,
+                    'quantitySold': quantity,
+                    'remainingStock': product.stock
+                })
+                
+            except Product.DoesNotExist:
+                failed_updates.append({
+                    'productId': product_id,
+                    'error': 'Product not found'
+                })
+            except Exception as e:
+                failed_updates.append({
+                    'productId': product_id,
+                    'error': f'Update failed: {str(e)}'
+                })
+        
+        # Prepare response
+        response_data = {
+            'success': True,
+            'updatedProducts': updated_products,
+            'failedUpdates': failed_updates,
+            'totalUpdated': len(updated_products),
+            'totalFailed': len(failed_updates)
+        }
+        
+        # If all updates failed, return error status
+        if len(updated_products) == 0 and len(failed_updates) > 0:
+            return JsonResponse(response_data, status=400)
+        
+        return JsonResponse(response_data)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': f'Server error: {str(e)}'}, status=500)
+
+@csrf_exempt
+@require_http_methods(["POST"])
 def webhook(request):
     """Handle Stripe webhooks"""
     payload = request.body
@@ -900,3 +982,208 @@ def webhook(request):
         print(f"Payment failed: {payment_intent['id']}")
     
     return JsonResponse({'success': True})
+
+# Newsletter Views
+@api_view(['POST'])
+def subscribe_newsletter(request):
+    """Subscribe to newsletter"""
+    try:
+        data = request.data
+        email = data.get('email', '').strip().lower()
+        subscription_source = data.get('source', 'footer')
+        user_id = request.headers.get('X-User-ID', '')
+        
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create subscription data
+        subscription_data = {
+            'email': email,
+            'subscription_source': subscription_source,
+            'user_id': user_id if user_id else None,
+            'preferences': data.get('preferences', {})
+        }
+        
+        serializer = NewsletterSubscriptionSerializer(data=subscription_data)
+        
+        if serializer.is_valid():
+            subscription = serializer.save()
+            
+            # Send welcome email for newsletter (with delay if welcome email was recently sent)
+            try:
+                EmailService.send_newsletter_welcome_email_delayed(email, delay_minutes=2)
+            except Exception as e:
+                print(f"Failed to send newsletter welcome email: {e}")
+                # Don't fail the subscription if email fails
+            
+            return Response({
+                'message': 'Successfully subscribed to newsletter',
+                'subscription': NewsletterSubscriptionSerializer(subscription).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def unsubscribe_newsletter(request):
+    """Unsubscribe from newsletter"""
+    try:
+        data = request.data
+        email = data.get('email', '').strip().lower()
+        
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            subscription = NewsletterSubscription.objects.get(email=email)
+            subscription.unsubscribe()
+            
+            return Response({
+                'message': 'Successfully unsubscribed from newsletter'
+            }, status=status.HTTP_200_OK)
+            
+        except NewsletterSubscription.DoesNotExist:
+            return Response({
+                'error': 'Email address not found in our newsletter list'
+            }, status=status.HTTP_404_NOT_FOUND)
+            
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def check_newsletter_subscription(request):
+    """Check if email is subscribed to newsletter"""
+    try:
+        email = request.GET.get('email', '').strip().lower()
+        
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            subscription = NewsletterSubscription.objects.get(email=email)
+            return Response({
+                'is_subscribed': subscription.is_active,
+                'subscribed_at': subscription.subscribed_at,
+                'unsubscribed_at': subscription.unsubscribed_at
+            }, status=status.HTTP_200_OK)
+            
+        except NewsletterSubscription.DoesNotExist:
+            return Response({
+                'is_subscribed': False
+            }, status=status.HTTP_200_OK)
+            
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def get_newsletter_subscribers(request):
+    """Get all newsletter subscribers (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        
+        active_only = request.GET.get('active_only', 'true').lower() == 'true'
+        
+        if active_only:
+            subscribers = NewsletterSubscription.objects.filter(is_active=True)
+        else:
+            subscribers = NewsletterSubscription.objects.all()
+        
+        serializer = NewsletterSubscriptionSerializer(subscribers, many=True)
+        
+        return Response({
+            'subscribers': serializer.data,
+            'total_count': subscribers.count(),
+            'active_count': NewsletterSubscription.objects.filter(is_active=True).count()
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def admin_unsubscribe_newsletter(request):
+    """Admin unsubscribe from newsletter (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        email = data.get('email', '').strip().lower()
+
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            subscription = NewsletterSubscription.objects.get(email=email)
+            subscription.unsubscribe()
+
+            return Response({
+                'message': f'Successfully unsubscribed {email} from newsletter'
+            }, status=status.HTTP_200_OK)
+
+        except NewsletterSubscription.DoesNotExist:
+            return Response({
+                'error': 'Email address not found in our newsletter list'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def send_newsletter_to_subscriber(request):
+    """Send newsletter to specific subscriber (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        email = data.get('email', '').strip().lower()
+        subject = data.get('subject', '').strip()
+        content = data.get('content', '').strip()
+        is_html = data.get('is_html', True)
+
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not subject:
+            return Response({'error': 'Subject is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not content:
+            return Response({'error': 'Content is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Get the subscriber
+            subscription = NewsletterSubscription.objects.get(email=email)
+            
+            if not subscription.is_active:
+                return Response({
+                    'error': 'Subscriber is not active. Cannot send newsletter to unsubscribed users.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Send newsletter email
+            success = EmailService.send_newsletter_email(subject, content, [subscription], is_html)
+            
+            if success:
+                return Response({
+                    'message': f'Newsletter sent successfully to {email}'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to send newsletter email'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except NewsletterSubscription.DoesNotExist:
+            return Response({
+                'error': 'Email address not found in our newsletter list'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
