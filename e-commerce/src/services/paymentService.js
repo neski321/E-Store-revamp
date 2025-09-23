@@ -221,6 +221,50 @@ class PaymentService {
       throw error;
     }
   }
+
+  // Update product stock after successful order
+  async updateStockAfterOrder(orderItems) {
+    try {
+      if (!orderItems || orderItems.length === 0) {
+        throw new Error('No order items provided');
+      }
+
+      // Prepare order items for backend API
+      const stockUpdateData = orderItems.map(item => ({
+        productId: item.productId || item.id,
+        quantity: item.quantity || 1
+      }));
+
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/update-stock/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderItems: stockUpdateData
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update stock');
+      }
+
+      const result = await response.json();
+      
+      // Log the results
+      console.log('Stock update results:', result);
+      
+      if (result.failedUpdates && result.failedUpdates.length > 0) {
+        console.warn('Some products failed to update stock:', result.failedUpdates);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error updating stock after order:', error);
+      throw error;
+    }
+  }
 }
 
 const paymentService = new PaymentService();

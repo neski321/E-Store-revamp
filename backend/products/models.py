@@ -104,3 +104,29 @@ class Dimension(models.Model):
     width = models.FloatField()
     height = models.FloatField()
     depth = models.FloatField()
+
+class NewsletterSubscription(models.Model):
+    email = models.EmailField(unique=True, db_index=True)
+    is_active = models.BooleanField(default=True)
+    subscribed_at = models.DateTimeField(auto_now_add=True)
+    unsubscribed_at = models.DateTimeField(null=True, blank=True)
+    subscription_source = models.CharField(max_length=100, default='footer')  # footer, signup, etc.
+    user_id = models.CharField(max_length=100, blank=True, null=True)  # Link to user if authenticated
+    preferences = models.JSONField(default=dict)  # Store user preferences for email types
+    
+    class Meta:
+        ordering = ['-subscribed_at']
+        indexes = [
+            models.Index(fields=['email', 'is_active']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['subscribed_at']),
+        ]
+    
+    def __str__(self):
+        return f"Newsletter: {self.email} ({'Active' if self.is_active else 'Inactive'})"
+    
+    def unsubscribe(self):
+        """Mark subscription as inactive"""
+        self.is_active = False
+        self.unsubscribed_at = timezone.now()
+        self.save()

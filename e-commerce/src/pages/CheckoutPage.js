@@ -10,6 +10,7 @@ import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import ErrorDialog from '../components/ErrorDialog';
 import SuccessDialog from '../components/SuccessDialog';
+import paymentService from '../services/paymentService';
 
 // Initialize Stripe
 const stripePromise = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY 
@@ -111,12 +112,41 @@ const CheckoutPage = () => {
     }
   };
 
+  const validateStockAvailability = () => {
+    const stockIssues = [];
+    
+    cart.forEach(item => {
+      const requestedQuantity = item.quantity || 1;
+      const availableStock = item.stock || 0;
+      
+      if (requestedQuantity > availableStock) {
+        stockIssues.push({
+          productName: item.name,
+          requestedQuantity,
+          availableStock
+        });
+      }
+    });
+    
+    return stockIssues;
+  };
+
   const handleProceedToPayment = () => {
     setError('');  // Clear any previous error 
 
     // Validation checks
     if (cart.length === 0) {
       setError('Your cart is empty. Please add items to your cart before proceeding.');
+      return;
+    }
+
+    // Check stock availability
+    const stockIssues = validateStockAvailability();
+    if (stockIssues.length > 0) {
+      const stockErrorMessages = stockIssues.map(issue => 
+        `${issue.productName}: Only ${issue.availableStock} available (requested ${issue.requestedQuantity})`
+      );
+      setError(`Insufficient stock for some items: ${stockErrorMessages.join(', ')}`);
       return;
     }
 
@@ -134,13 +164,31 @@ const CheckoutPage = () => {
 
   const handlePaymentSuccess = async (paymentIntent) => {
     try {
+      // First, update product stock in the backend
+      try {
+        const stockUpdateResult = await paymentService.updateStockAfterOrder(cart);
+        console.log('Stock updated successfully:', stockUpdateResult);
+        
+        // Check if any stock updates failed
+        if (stockUpdateResult.failedUpdates && stockUpdateResult.failedUpdates.length > 0) {
+          console.warn('Some products had insufficient stock:', stockUpdateResult.failedUpdates);
+          // You might want to show a warning to the user here
+        }
+      } catch (stockError) {
+        console.error('Failed to update stock:', stockError);
+        // Don't fail the entire payment process if stock update fails
+        // Log the error but continue with order completion
+        setError(`Payment successful, but there was an issue updating inventory. Please contact support.`);
+      }
+
+      // Clear the checkout list and complete the order
       await clearCheckoutList();
       setOrderConfirmed(true);
       setOrderId(paymentIntent.id);
       localStorage.removeItem('cart');
     } catch (error) {
       console.error('Error after payment success:', error);
-      setError('Payment was successful but there was an error clearing your cart.');
+      setError('Payment was successful but there was an error completing your order.');
     }
   };
 

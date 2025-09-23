@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Product, Review, Dimension
+from .models import Product, Review, Dimension, NewsletterSubscription
 
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
@@ -164,3 +164,34 @@ class ProductSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+class NewsletterSubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NewsletterSubscription
+        fields = ['email', 'is_active', 'subscribed_at', 'unsubscribed_at', 'subscription_source', 'user_id', 'preferences']
+        read_only_fields = ['subscribed_at', 'unsubscribed_at']
+    
+    def validate_email(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Email address is required.")
+        return value.strip().lower()
+    
+    def create(self, validated_data):
+        email = validated_data['email']
+        # Check if subscription already exists
+        existing_subscription = NewsletterSubscription.objects.filter(email=email).first()
+        
+        if existing_subscription:
+            if existing_subscription.is_active:
+                raise serializers.ValidationError("This email is already subscribed to our newsletter.")
+            else:
+                # Reactivate existing subscription
+                existing_subscription.is_active = True
+                existing_subscription.unsubscribed_at = None
+                existing_subscription.subscription_source = validated_data.get('subscription_source', 'footer')
+                existing_subscription.user_id = validated_data.get('user_id')
+                existing_subscription.preferences = validated_data.get('preferences', {})
+                existing_subscription.save()
+                return existing_subscription
+        
+        return super().create(validated_data)

@@ -1,9 +1,52 @@
 // src/components/Footer.js
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import NewsletterService from '../services/newsletterService';
 
 function Footer() {
   const currentYear = new Date().getFullYear();
+  const [email, setEmail] = useState('');
+  const [isSubscribing, setIsSubscribing] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null); // 'success', 'error', null
+  const [subscriptionMessage, setSubscriptionMessage] = useState('');
+
+  const handleNewsletterSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!email.trim()) {
+      setSubscriptionStatus('error');
+      setSubscriptionMessage('Please enter your email address');
+      return;
+    }
+
+    if (!NewsletterService.validateEmail(email)) {
+      setSubscriptionStatus('error');
+      setSubscriptionMessage('Please enter a valid email address');
+      return;
+    }
+
+    setIsSubscribing(true);
+    setSubscriptionStatus(null);
+    setSubscriptionMessage('');
+
+    try {
+      await NewsletterService.subscribe(email, 'footer');
+      setSubscriptionStatus('success');
+      setSubscriptionMessage('Thank you for subscribing! You\'ll receive a confirmation email shortly. If you just signed up, there may be a brief delay to avoid sending multiple emails at once.');
+      setEmail(''); // Clear the form
+    } catch (error) {
+      setSubscriptionStatus('error');
+      
+      // Handle specific error cases
+      if (error.message && error.message.includes('already exists')) {
+        setSubscriptionMessage('This email is already subscribed to our newsletter!');
+      } else {
+        setSubscriptionMessage(error.message || 'Failed to subscribe. Please try again.');
+      }
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
 
   return (
     <footer className="bg-gray-900 text-white">
@@ -114,20 +157,36 @@ function Footer() {
           <div>
             <h3 className="text-lg font-semibold mb-6">Stay Updated</h3>
             <p className="text-gray-400 mb-4">
-              Subscribe to our newsletter for the latest products and exclusive offers.
+              Get the latest products, exclusive deals, and special offers delivered to your inbox. 
+              <span className="text-gray-500 text-sm block mt-1">No spam, unsubscribe anytime.</span>
             </p>
-            <form className="space-y-3">
+            <form onSubmit={handleNewsletterSubmit} className="space-y-3">
               <input
                 type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
                 className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-primary-500 transition-colors duration-200"
+                disabled={isSubscribing}
               />
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-3 px-4 rounded-lg font-medium hover:from-primary-700 hover:to-primary-800 transition-all duration-200 transform hover:-translate-y-1"
+                disabled={isSubscribing}
+                className="w-full bg-gradient-to-r from-primary-600 to-primary-700 text-white py-3 px-4 rounded-lg font-medium hover:from-primary-700 hover:to-primary-800 transition-all duration-200 transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
               >
-                Subscribe
+                {isSubscribing ? 'Subscribing...' : 'Subscribe'}
               </button>
+              
+              {/* Status Messages */}
+              {subscriptionStatus && (
+                <div className={`text-sm p-3 rounded-lg ${
+                  subscriptionStatus === 'success' 
+                    ? 'bg-green-900/20 text-green-400 border border-green-800' 
+                    : 'bg-red-900/20 text-red-400 border border-red-800'
+                }`}>
+                  {subscriptionMessage}
+                </div>
+              )}
             </form>
           </div>
         </div>

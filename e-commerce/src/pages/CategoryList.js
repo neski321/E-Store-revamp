@@ -7,12 +7,17 @@ import { db } from '../firebaseConfig';
 import { collection, addDoc, deleteDoc, getDocs, query, where } from 'firebase/firestore';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
+import ErrorDialog from '../components/ErrorDialog';
+import SuccessDialog from '../components/SuccessDialog';
 
 const CategoryList = () => {
   const { category } = useParams();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [favorites, setFavorites] = useState([]);
+  const [checkoutItems, setCheckoutItems] = useState([]);
+  const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
   const { currentUser } = useAuth();
 
   useEffect(() => {
@@ -62,11 +67,25 @@ const CategoryList = () => {
     }
   }, [currentUser]);
 
+  const fetchCheckoutItems = useCallback(async () => {
+    if (!currentUser) return;
+    
+    try {
+      const checkoutRef = collection(db, 'checkout', currentUser.uid, 'items');
+      const querySnapshot = await getDocs(checkoutRef);
+      const checkoutIds = querySnapshot.docs.map(doc => doc.data().productId);
+      setCheckoutItems(checkoutIds);
+    } catch (error) {
+      console.error('Error fetching checkout items:', error);
+    }
+  }, [currentUser]);
+
   useEffect(() => {
     if (currentUser) {
       fetchFavorites();
+      fetchCheckoutItems();
     }
-  }, [currentUser, fetchFavorites]);
+  }, [currentUser, fetchFavorites, fetchCheckoutItems]);
 
   const toggleFavorite = async (productId) => {
     if (!currentUser) {
@@ -91,6 +110,69 @@ const CategoryList = () => {
       }
     } catch (error) {
       console.error('Error toggling favorite:', error);
+    }
+  };
+
+  const addToCart = async (product) => {
+    if (!currentUser) {
+      setErrorDialog({
+        isOpen: true,
+        title: 'Authentication Required',
+        message: 'Please log in to add items to your cart.',
+        details: ''
+      });
+      return;
+    }
+
+    try {
+      const cartRef = collection(db, 'checkout', currentUser.uid, 'items');
+      
+      // Check if product is already in cart
+      if (checkoutItems.includes(product.id)) {
+        setErrorDialog({
+          isOpen: true,
+          title: 'Already in Cart',
+          message: 'This product is already in your cart.',
+          details: ''
+        });
+        return;
+      }
+
+      // Check stock availability
+      if (product.stock <= 0) {
+        setErrorDialog({
+          isOpen: true,
+          title: 'Out of Stock',
+          message: 'This product is currently out of stock.',
+          details: ''
+        });
+        return;
+      }
+
+      await addDoc(cartRef, {
+        productId: product.id,
+        name: product.title,
+        price: product.price,
+        thumbnail: product.thumbnail,
+        quantity: 1,
+        stock: product.stock,
+        addedAt: new Date()
+      });
+      
+      setCheckoutItems(prev => [...prev, product.id]);
+      setSuccessDialog({
+        isOpen: true,
+        title: 'Success',
+        message: 'Product added to cart successfully! 🛒'
+      });
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      setErrorDialog({
+        isOpen: true,
+        title: 'Add to Cart Failed',
+        message: 'Failed to add product to cart. Please try again.',
+        details: error.message
+      });
     }
   };
 
@@ -288,6 +370,30 @@ const CategoryList = () => {
                     >
                       View Details
                     </Link>
+                    <button
+                      onClick={() => addToCart(product)}
+                      disabled={product.stock <= 0 || checkoutItems.includes(product.id)}
+                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors duration-200 text-center ${
+                        product.stock <= 0
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : checkoutItems.includes(product.id)
+                          ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                          : 'bg-primary-600 text-white hover:bg-primary-700'
+                      }`}
+                      title={
+                        product.stock <= 0
+                          ? 'Out of stock'
+                          : checkoutItems.includes(product.id)
+                          ? 'Already in cart'
+                          : 'Add to cart'
+                      }
+                    >
+                      {product.stock <= 0
+                        ? 'Out of Stock'
+                        : checkoutItems.includes(product.id)
+                        ? 'In Cart'
+                        : 'Add to Cart'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -325,6 +431,23 @@ const CategoryList = () => {
         </div>
       </div>
       <Footer />
+      
+      {/* Error Dialog */}
+      <ErrorDialog
+        isOpen={errorDialog.isOpen}
+        onClose={() => setErrorDialog({ isOpen: false, title: '', message: '', details: '' })}
+        title={errorDialog.title}
+        message={errorDialog.message}
+        details={errorDialog.details}
+      />
+      
+      {/* Success Dialog */}
+      <SuccessDialog
+        isOpen={successDialog.isOpen}
+        onClose={() => setSuccessDialog({ isOpen: false, title: '', message: '' })}
+        title={successDialog.title}
+        message={successDialog.message}
+      />
     </>
   );
 };

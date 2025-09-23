@@ -26,7 +26,9 @@ from rest_framework.routers import DefaultRouter
 from products.views import (
     product_list, product_detail, categories, create_category, brands, add_review, review_detail,
     upload_product_images, upload_single_image, delete_image, upload_profile_picture,
-    create_payment_intent, send_order_confirmation, webhook, send_welcome_email, send_verification_reminder
+    create_payment_intent, send_order_confirmation, webhook, send_welcome_email, send_verification_reminder,
+    update_stock_after_order, subscribe_newsletter, unsubscribe_newsletter, check_newsletter_subscription,
+    get_newsletter_subscribers, admin_unsubscribe_newsletter, send_newsletter_to_subscriber
 )
 
 router = DefaultRouter()
@@ -53,11 +55,20 @@ urlpatterns = [
     # Payment endpoints
     path('api/create-payment-intent/', create_payment_intent, name='create_payment_intent'),
     path('api/send-order-confirmation/', send_order_confirmation, name='send_order_confirmation'),
+    path('api/update-stock/', update_stock_after_order, name='update_stock_after_order'),
     path('api/webhook/', webhook, name='webhook'),
     
     # Email endpoints
     path('api/send-welcome-email/', send_welcome_email, name='send_welcome_email'),
     path('api/send-verification-reminder/', send_verification_reminder, name='send_verification_reminder'),
+    
+        # Newsletter endpoints
+        path('api/newsletter/subscribe/', subscribe_newsletter, name='subscribe_newsletter'),
+        path('api/newsletter/unsubscribe/', unsubscribe_newsletter, name='unsubscribe_newsletter'),
+        path('api/newsletter/check/', check_newsletter_subscription, name='check_newsletter_subscription'),
+        path('api/newsletter/subscribers/', get_newsletter_subscribers, name='get_newsletter_subscribers'),
+        path('api/newsletter/admin-unsubscribe/', admin_unsubscribe_newsletter, name='admin_unsubscribe_newsletter'),
+        path('api/newsletter/send-to-subscriber/', send_newsletter_to_subscriber, name='send_newsletter_to_subscriber'),
 ]
 
 # Serve static files FIRST (before React catch-all)

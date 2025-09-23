@@ -571,6 +571,32 @@ const AdminPage = () => {
                 </div>
               </div>
 
+              {/* Newsletter Management Card */}
+              <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="p-8">
+                  <div className="flex items-center mb-6">
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                      <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900">Newsletter Management</h3>
+                  </div>
+                  <p className="text-gray-600 mb-6">
+                    Manage newsletter subscriptions, view subscriber analytics, and export subscriber data.
+                  </p>
+                  <Link
+                    to="/newsletter-management"
+                    className="inline-flex items-center justify-center w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg font-medium transition-colors duration-200"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    Manage Newsletter
+                  </Link>
+                </div>
+              </div>
+
               {/* Review Moderation Card - Temporarily Disabled */}
               <div className="bg-white rounded-2xl shadow-lg opacity-60 relative">
                 <div className="absolute inset-0 bg-gray-100 bg-opacity-50 rounded-2xl flex items-center justify-center z-10">
