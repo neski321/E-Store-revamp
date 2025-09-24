@@ -32,7 +32,7 @@ from products.views import (
     get_email_templates, create_email_template, get_email_template, update_email_template,
     delete_email_template, send_email_with_template, get_template_assignments, 
     create_template_assignment, update_template_assignment, delete_template_assignment,
-    get_template_for_purpose
+    unassign_template_assignment, get_template_for_purpose
 )
 
 router = DefaultRouter()
@@ -87,6 +87,7 @@ urlpatterns = [
         path('api/email/template-assignments/create/', create_template_assignment, name='create_template_assignment'),
         path('api/email/template-assignments/<int:assignment_id>/update/', update_template_assignment, name='update_template_assignment'),
         path('api/email/template-assignments/<int:assignment_id>/delete/', delete_template_assignment, name='delete_template_assignment'),
+        path('api/email/template-assignments/<int:assignment_id>/unassign/', unassign_template_assignment, name='unassign_template_assignment'),
         path('api/email/template-for-purpose/<str:purpose>/', get_template_for_purpose, name='get_template_for_purpose'),
 ]
 

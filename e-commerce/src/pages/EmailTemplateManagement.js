@@ -24,6 +24,9 @@ const EmailTemplateManagement = () => {
   const [showSendModal, setShowSendModal] = useState(false);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [showUnassignModal, setShowUnassignModal] = useState(false);
+  const [unassignData, setUnassignData] = useState(null);
+  const [unassignSuccess, setUnassignSuccess] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [sendingTemplate, setSendingTemplate] = useState(null);
   const [sendEmail, setSendEmail] = useState('');
@@ -185,6 +188,39 @@ const EmailTemplateManagement = () => {
     }
   };
 
+  const handleUnassignAssignment = (assignmentId, purposeDisplay, templateName) => {
+    setUnassignData({
+      id: assignmentId,
+      purposeDisplay,
+      templateName
+    });
+    setShowUnassignModal(true);
+  };
+
+  const confirmUnassignAssignment = async () => {
+    if (!unassignData) return;
+    
+    try {
+      setError('');
+      await TemplateAssignmentService.unassignAssignment(unassignData.id, currentUser, role);
+      await fetchAssignments();
+      setShowUnassignModal(false);
+      setUnassignData(null);
+      
+      // Show success notification
+      setUnassignSuccess(true);
+      setTimeout(() => setUnassignSuccess(false), 3000);
+    } catch (err) {
+      setError(err.message || 'Failed to unassign template assignment');
+      console.error('Error unassigning assignment:', err);
+    }
+  };
+
+  const cancelUnassignAssignment = () => {
+    setShowUnassignModal(false);
+    setUnassignData(null);
+  };
+
   // Helper function to get assignment purpose for a template
   const getAssignmentPurpose = (templateId) => {
     if (!assignments || !Array.isArray(assignments)) {
@@ -310,6 +346,18 @@ const EmailTemplateManagement = () => {
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
               <strong className="font-bold">Error!</strong>
               <span className="block sm:inline"> {error}</span>
+            </div>
+          )}
+
+          {unassignSuccess && (
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-6" role="alert">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <strong className="font-bold">Success!</strong>
+                <span className="block sm:inline ml-1"> Template assignment has been successfully removed.</span>
+              </div>
             </div>
           )}
 
@@ -1055,6 +1103,9 @@ const EmailTemplateManagement = () => {
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Status
                             </th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Actions
+                            </th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -1074,6 +1125,18 @@ const EmailTemplateManagement = () => {
                                 }`}>
                                   {assignment.is_active ? 'Active' : 'Inactive'}
                                 </span>
+                              </td>
+                              <td className="px-3 py-2">
+                                <button
+                                  onClick={() => handleUnassignAssignment(assignment.id, assignment.purpose_display, assignment.template_name)}
+                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded-md transition-colors duration-200"
+                                  title="Unassign this template from this purpose"
+                                >
+                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                  Unassign
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -1181,6 +1244,48 @@ const EmailTemplateManagement = () => {
                     className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {(purposeChoices?.length || 0) === 0 ? 'No Available Purposes' : 'Create Assignment'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Unassign Confirmation Modal */}
+        {showUnassignModal && unassignData && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" style={{zIndex: 10000}}>
+            <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-md shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                
+                <div className="text-center">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Unassign Template?
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Are you sure you want to unassign template <strong>"{unassignData.templateName}"</strong> from <strong>"{unassignData.purposeDisplay}"</strong>?
+                  </p>
+                  <p className="text-xs text-gray-500 mb-6">
+                    This will remove the assignment and make the purpose available for reassignment.
+                  </p>
+                </div>
+
+                <div className="flex space-x-3 justify-end">
+                  <button
+                    onClick={cancelUnassignAssignment}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmUnassignAssignment}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition-colors duration-200"
+                  >
+                    Unassign
                   </button>
                 </div>
               </div>
