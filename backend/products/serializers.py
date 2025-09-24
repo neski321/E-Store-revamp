@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Product, Review, Dimension, NewsletterSubscription
+from .models import Product, Review, Dimension, NewsletterSubscription, EmailTemplate, EmailTemplateAssignment
 
 class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
@@ -194,4 +194,58 @@ class NewsletterSubscriptionSerializer(serializers.ModelSerializer):
                 existing_subscription.save()
                 return existing_subscription
         
+            return super().create(validated_data)
+
+
+class EmailTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmailTemplate
+        fields = [
+            'id', 'name', 'template_type', 'subject', 'html_content', 
+            'plain_text_content', 'is_active', 'is_default', 'created_at', 
+            'updated_at', 'created_by', 'variables', 'description', 'usage_count'
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'usage_count']
+
+    def validate_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Template name is required.")
+        return value.strip()
+
+    def validate_subject(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Subject is required.")
+        return value.strip()
+
+    def validate_html_content(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("HTML content is required.")
+        return value.strip()
+
+    def create(self, validated_data):
+        # Set created_by from request context if available
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user:
+            validated_data['created_by'] = getattr(request.user, 'uid', None)
+        return super().create(validated_data)
+
+
+class EmailTemplateAssignmentSerializer(serializers.ModelSerializer):
+    template_name = serializers.CharField(source='template.name', read_only=True)
+    template_type = serializers.CharField(source='template.template_type', read_only=True)
+    purpose_display = serializers.CharField(source='get_purpose_display', read_only=True)
+    
+    class Meta:
+        model = EmailTemplateAssignment
+        fields = [
+            'id', 'purpose', 'purpose_display', 'template', 'template_name', 
+            'template_type', 'is_active', 'created_at', 'updated_at', 'created_by'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def create(self, validated_data):
+        # Set created_by from request context if available
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user:
+            validated_data['created_by'] = getattr(request.user, 'uid', None)
         return super().create(validated_data)

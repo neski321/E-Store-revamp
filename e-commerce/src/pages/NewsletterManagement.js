@@ -4,6 +4,8 @@ import { useAuth } from '../contexts/AuthContext';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import NewsletterService from '../services/newsletterService';
+import EmailTemplateService from '../services/emailTemplateService';
+import EnhancedTextEditor from '../components/EnhancedTextEditor';
 
 const NewsletterManagement = () => {
   const { currentUser, role, loading: authLoading } = useAuth();
@@ -24,6 +26,26 @@ const NewsletterManagement = () => {
   const [newsletterSubject, setNewsletterSubject] = useState('');
   const [newsletterContent, setNewsletterContent] = useState('');
   const [newsletterIsHtml, setNewsletterIsHtml] = useState(true);
+  
+  // Template-related states
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
+  const [templateVariables, setTemplateVariables] = useState({});
+  const [useTemplate, setUseTemplate] = useState(false);
+  
+  // Template form states
+  const [templateForm, setTemplateForm] = useState({
+    name: '',
+    template_type: 'newsletter',
+    subject: '',
+    html_content: '',
+    plain_text_content: '',
+    description: '',
+    is_active: true,
+    is_default: false,
+    variables: {}
+  });
 
   const fetchSubscribers = useCallback(async () => {
     try {
@@ -42,23 +64,33 @@ const NewsletterManagement = () => {
     }
   }, [activeOnly, currentUser, role]);
 
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const data = await EmailTemplateService.getTemplates(null, true, currentUser, role);
+      setTemplates(data.templates);
+    } catch (err) {
+      console.error('Error fetching templates:', err);
+    }
+  }, [currentUser, role]);
+
   useEffect(() => {
     // Wait for auth to load before checking permissions
     if (authLoading) {
       return;
     }
     
-    // Check if user is admin before fetching subscribers
-    if (currentUser && role === 'admin') {
-      fetchSubscribers();
-    } else if (currentUser && role !== 'admin') {
-      setError('Admin access required to view newsletter subscribers');
-      setLoading(false);
-    } else if (!currentUser) {
-      setError('Please log in to access this page');
-      setLoading(false);
-    }
-  }, [fetchSubscribers, currentUser, role, authLoading]);
+        // Check if user is admin before fetching data
+        if (currentUser && role === 'admin') {
+          fetchSubscribers();
+          fetchTemplates();
+        } else if (currentUser && role !== 'admin') {
+          setError('Admin access required to view newsletter subscribers');
+          setLoading(false);
+        } else if (!currentUser) {
+          setError('Please log in to access this page');
+          setLoading(false);
+        }
+  }, [fetchSubscribers, fetchTemplates, currentUser, role, authLoading]);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -105,6 +137,9 @@ const NewsletterManagement = () => {
     setNewsletterSubject('');
     setNewsletterContent('');
     setNewsletterIsHtml(true);
+    setSelectedTemplate(null);
+    setTemplateVariables({});
+    setUseTemplate(false);
     setShowNewsletterModal(true);
   };
 
@@ -113,19 +148,34 @@ const NewsletterManagement = () => {
       setSendingNewsletter(true);
       setError('');
       
-      await NewsletterService.sendNewsletterToSubscriber(
-        newsletterEmail, 
-        newsletterSubject, 
-        newsletterContent, 
-        newsletterIsHtml, 
-        currentUser, 
-        role
-      );
+      if (useTemplate && selectedTemplate) {
+        // Send using template
+        await EmailTemplateService.sendWithTemplate(
+          selectedTemplate.id,
+          newsletterEmail,
+          templateVariables,
+          currentUser,
+          role
+        );
+      } else {
+        // Send custom newsletter
+        await NewsletterService.sendNewsletterToSubscriber(
+          newsletterEmail, 
+          newsletterSubject, 
+          newsletterContent, 
+          newsletterIsHtml, 
+          currentUser, 
+          role
+        );
+      }
       
       setShowNewsletterModal(false);
       setNewsletterEmail('');
       setNewsletterSubject('');
       setNewsletterContent('');
+      setSelectedTemplate(null);
+      setTemplateVariables({});
+      setUseTemplate(false);
     } catch (err) {
       setError(err.message || 'Failed to send newsletter');
       console.error('Error sending newsletter:', err);
@@ -139,7 +189,55 @@ const NewsletterManagement = () => {
     setNewsletterEmail('');
     setNewsletterSubject('');
     setNewsletterContent('');
+    setSelectedTemplate(null);
+    setTemplateVariables({});
+    setUseTemplate(false);
   };
+
+  const handleTemplateSelect = (template) => {
+    setSelectedTemplate(template);
+    setNewsletterSubject(template.subject);
+    setNewsletterContent(template.html_content);
+    setNewsletterIsHtml(true);
+    setTemplateVariables({});
+  };
+
+  const handleCreateTemplate = async () => {
+    try {
+      setError('');
+      await EmailTemplateService.createTemplate(templateForm, currentUser, role);
+      setShowCreateTemplateModal(false);
+      resetTemplateForm();
+      await fetchTemplates();
+    } catch (err) {
+      setError(err.message || 'Failed to create template');
+      console.error('Error creating template:', err);
+    }
+  };
+
+  const resetTemplateForm = () => {
+    setTemplateForm({
+      name: '',
+      template_type: 'newsletter',
+      subject: '',
+      html_content: '',
+      plain_text_content: '',
+      description: '',
+      is_active: true,
+      is_default: false,
+      variables: {}
+    });
+  };
+
+  const handleTextContentChange = (plainText, htmlContent) => {
+    setTemplateForm({
+      ...templateForm,
+      plain_text_content: plainText,
+      html_content: htmlContent
+    });
+  };
+
+  const templateTypes = EmailTemplateService.getTemplateTypes();
 
   const exportSubscribers = () => {
     const csvContent = [
@@ -174,10 +272,10 @@ const NewsletterManagement = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
       <Navbar />
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex justify-between items-center">
@@ -241,28 +339,28 @@ const NewsletterManagement = () => {
 
           {/* Subscribers Table */}
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+            <table className="w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-48">
                     Email
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Subscribed At
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                    Subscribed
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Unsubscribed At
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+                    Unsubscribed
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
                     Source
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
                     User ID
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
                     Actions
                   </th>
                 </tr>
@@ -283,51 +381,57 @@ const NewsletterManagement = () => {
                 ) : (
                   subscribers.map((subscriber) => (
                     <tr key={subscriber.email} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-3 py-2 text-xs font-medium text-gray-900 truncate">
                         {subscriber.email}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      <td className="px-3 py-2">
+                        <span className={`inline-flex px-1.5 py-0.5 text-xs font-semibold rounded-full ${
                           subscriber.is_active
                             ? 'bg-green-100 text-green-800'
                             : 'bg-red-100 text-red-800'
                         }`}>
-                          {subscriber.is_active ? 'Active' : 'Inactive'}
+                          {subscriber.is_active ? '✓' : '✗'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {subscriber.subscribed_at ? formatDate(subscriber.subscribed_at) : '-'}
+                      <td className="px-3 py-2 text-xs text-gray-500">
+                        {subscriber.subscribed_at ? new Date(subscriber.subscribed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {subscriber.unsubscribed_at ? formatDate(subscriber.unsubscribed_at) : '-'}
+                      <td className="px-3 py-2 text-xs text-gray-500">
+                        {subscriber.unsubscribed_at ? new Date(subscriber.unsubscribed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {subscriber.subscription_source || 'footer'}
+                      <td className="px-3 py-2 text-xs text-gray-500">
+                        {subscriber.subscription_source?.slice(0, 6) || 'footer'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {subscriber.user_id || '-'}
+                      <td className="px-3 py-2 text-xs text-gray-500">
+                        {subscriber.user_id ? subscriber.user_id.slice(-4) : '-'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        <div className="flex space-x-2">
+                      <td className="px-3 py-2">
+                        <div className="flex space-x-1">
                           {subscriber.is_active ? (
                             <>
                               <button
                                 onClick={() => handleSendNewsletterClick(subscriber.email)}
-                                className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors duration-200"
+                                className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={sendingNewsletter}
+                                title="Send Newsletter"
                               >
-                                Send Newsletter
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                </svg>
                               </button>
                               <button
                                 onClick={() => handleUnsubscribeClick(subscriber.email)}
-                                className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors duration-200"
+                                className="bg-red-600 text-white p-1.5 rounded hover:bg-red-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                 disabled={unsubscribing}
+                                title="Unsubscribe"
                               >
-                                Unsubscribe
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728" />
+                                </svg>
                               </button>
                             </>
                           ) : (
-                            <span className="text-gray-400 text-xs">Already unsubscribed</span>
+                            <span className="text-gray-400 text-xs">Unsubscribed</span>
                           )}
                         </div>
                       </td>
@@ -406,6 +510,65 @@ const NewsletterManagement = () => {
               </div>
               
               <div className="space-y-4">
+                {/* Template Selection */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Use Template
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateTemplateModal(true)}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      + Create New Template
+                    </button>
+                  </div>
+                  <div className="flex items-center space-x-4 mb-3">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={useTemplate}
+                        onChange={(e) => {
+                          setUseTemplate(e.target.checked);
+                          if (!e.target.checked) {
+                            setSelectedTemplate(null);
+                            setNewsletterSubject('');
+                            setNewsletterContent('');
+                          }
+                        }}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        disabled={sendingNewsletter}
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Use existing template</span>
+                    </label>
+                  </div>
+                  
+                  {useTemplate && (
+                    <div className="mb-4">
+                      <select
+                        value={selectedTemplate?.id || ''}
+                        onChange={(e) => {
+                          const templateId = e.target.value;
+                          const template = templates.find(t => t.id === parseInt(templateId));
+                          if (template) {
+                            handleTemplateSelect(template);
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={sendingNewsletter}
+                      >
+                        <option value="">Select a template...</option>
+                        {templates.map(template => (
+                          <option key={template.id} value={template.id}>
+                            {template.name} ({templateTypes.find(t => t.value === template.template_type)?.label})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label htmlFor="newsletter-subject" className="block text-sm font-medium text-gray-700 mb-1">
                     Subject *
@@ -417,7 +580,7 @@ const NewsletterManagement = () => {
                     onChange={(e) => setNewsletterSubject(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Enter newsletter subject"
-                    disabled={sendingNewsletter}
+                    disabled={sendingNewsletter || (useTemplate && selectedTemplate)}
                   />
                 </div>
 
@@ -430,11 +593,41 @@ const NewsletterManagement = () => {
                     value={newsletterContent}
                     onChange={(e) => setNewsletterContent(e.target.value)}
                     rows={8}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
                     placeholder="Enter newsletter content (HTML supported)"
-                    disabled={sendingNewsletter}
+                    disabled={sendingNewsletter || (useTemplate && selectedTemplate)}
                   />
                 </div>
+
+                {/* Template Variables */}
+                {useTemplate && selectedTemplate && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Template Variables
+                    </label>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Fill in the variables used in this template (e.g., {'{name}'}, {'{company}'})
+                    </p>
+                    <div className="space-y-2">
+                      {Object.keys(selectedTemplate.variables || {}).map(key => (
+                        <div key={key} className="flex space-x-2">
+                          <span className="px-3 py-2 bg-gray-100 rounded text-sm font-mono min-w-0 flex-shrink-0">{'{' + key + '}'}</span>
+                          <input
+                            type="text"
+                            value={templateVariables[key] || ''}
+                            onChange={(e) => setTemplateVariables({...templateVariables, [key]: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder={`Value for ${key}`}
+                            disabled={sendingNewsletter}
+                          />
+                        </div>
+                      ))}
+                      {Object.keys(selectedTemplate.variables || {}).length === 0 && (
+                        <p className="text-sm text-gray-500 italic">No variables defined for this template</p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex items-center">
                   <input
@@ -479,8 +672,160 @@ const NewsletterManagement = () => {
         </div>
       )}
 
+      {/* Create Template Modal */}
+      {showCreateTemplateModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Create Email Template</h3>
+                <button
+                  onClick={() => {
+                    setShowCreateTemplateModal(false);
+                    resetTemplateForm();
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="template-name" className="block text-sm font-medium text-gray-700 mb-1">
+                      Template Name *
+                    </label>
+                    <input
+                      type="text"
+                      id="template-name"
+                      value={templateForm.name}
+                      onChange={(e) => setTemplateForm({...templateForm, name: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter template name"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="template-type" className="block text-sm font-medium text-gray-700 mb-1">
+                      Template Type *
+                    </label>
+                    <select
+                      id="template-type"
+                      value={templateForm.template_type}
+                      onChange={(e) => setTemplateForm({...templateForm, template_type: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {templateTypes.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="template-subject" className="block text-sm font-medium text-gray-700 mb-1">
+                    Subject *
+                  </label>
+                  <input
+                    type="text"
+                    id="template-subject"
+                    value={templateForm.subject}
+                    onChange={(e) => setTemplateForm({...templateForm, subject: e.target.value})}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter email subject"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="template-description" className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    id="template-description"
+                    value={templateForm.description}
+                    onChange={(e) => setTemplateForm({...templateForm, description: e.target.value})}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter template description"
+                  />
+                </div>
+
+
+                <div>
+                  <div className="mb-3">
+                    <p className="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <strong>💡 Tip:</strong> Use the enhanced editor below to create beautiful emails with simple formatting hints. 
+                      The HTML content will be generated automatically. Click the toggle buttons to show/hide different sections.
+                    </p>
+                  </div>
+                  <EnhancedTextEditor
+                    value={templateForm.plain_text_content}
+                    onChange={handleTextContentChange}
+                    placeholder="Enter your email content using the formatting guide below..."
+                    showPreview={true}
+                    showHelp={true}
+                    variables={{
+                      email: 'user@example.com',
+                      name: 'John Doe',
+                      company: 'Your Company',
+                      website: window.location.origin,
+                      login_url: `${window.location.origin}/login`,
+                      unsubscribe_url: `${window.location.origin}/unsubscribe`,
+                      support_email: 'support@yourstore.com',
+                      shop_url: `${window.location.origin}/products`
+                    }}
+                  />
+                </div>
+
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.is_active}
+                      onChange={(e) => setTemplateForm({...templateForm, is_active: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">Active</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={templateForm.is_default}
+                      onChange={(e) => setTemplateForm({...templateForm, is_default: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <span className="ml-2 text-sm text-gray-700">Default for this type</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowCreateTemplateModal(false);
+                    resetTemplateForm();
+                  }}
+                  className="bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-400 transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateTemplate}
+                  className="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50"
+                  disabled={!templateForm.name.trim() || !templateForm.subject.trim() || !templateForm.html_content.trim()}
+                >
+                  Create Template
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      </main>
       <Footer />
-    </div>
+    </>
   );
 };
 

@@ -113,7 +113,7 @@ class NewsletterSubscription(models.Model):
     subscription_source = models.CharField(max_length=100, default='footer')  # footer, signup, etc.
     user_id = models.CharField(max_length=100, blank=True, null=True)  # Link to user if authenticated
     preferences = models.JSONField(default=dict)  # Store user preferences for email types
-    
+
     class Meta:
         ordering = ['-subscribed_at']
         indexes = [
@@ -121,12 +121,134 @@ class NewsletterSubscription(models.Model):
             models.Index(fields=['is_active']),
             models.Index(fields=['subscribed_at']),
         ]
-    
+
     def __str__(self):
         return f"Newsletter: {self.email} ({'Active' if self.is_active else 'Inactive'})"
-    
+
     def unsubscribe(self):
         """Mark subscription as inactive"""
         self.is_active = False
         self.unsubscribed_at = timezone.now()
         self.save()
+
+
+class EmailTemplate(models.Model):
+    TEMPLATE_TYPES = [
+        ('welcome', 'Welcome Email'),
+        ('promotional', 'Promotional'),
+        ('newsletter', 'Newsletter'),
+        ('announcement', 'Announcement'),
+        ('custom', 'Custom'),
+    ]
+    
+    USAGE_PURPOSES = [
+        ('new_user_welcome', 'New User Welcome'),
+        ('newsletter_send', 'Newsletter Sending'),
+        ('promotional_campaign', 'Promotional Campaign'),
+        ('product_announcement', 'Product Announcement'),
+        ('system_notification', 'System Notification'),
+        ('custom_use', 'Custom Use'),
+    ]
+    
+    name = models.CharField(max_length=200, unique=True)
+    template_type = models.CharField(max_length=50, choices=TEMPLATE_TYPES, default='newsletter')
+    subject = models.CharField(max_length=300)
+    html_content = models.TextField()
+    plain_text_content = models.TextField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.CharField(max_length=100, blank=True, null=True)  # Admin user ID
+    variables = models.JSONField(default=dict, blank=True)  # Available template variables
+    description = models.TextField(blank=True, null=True)
+    usage_count = models.PositiveIntegerField(default=0)  # Track how many times used
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['template_type', 'is_active']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"Template: {self.name} ({self.get_template_type_display()})"
+
+    def increment_usage(self):
+        """Increment usage count when template is used"""
+        self.usage_count += 1
+        self.save(update_fields=['usage_count'])
+
+    def save(self, *args, **kwargs):
+        # Ensure only one default template per type
+        if self.is_default:
+            EmailTemplate.objects.filter(
+                template_type=self.template_type,
+                is_default=True
+            ).exclude(pk=self.pk).update(is_default=False)
+        super().save(*args, **kwargs)
+
+
+class EmailTemplateAssignment(models.Model):
+    """
+    Model to assign specific templates to different usage purposes.
+    This allows admins to select which template to use for each email purpose.
+    """
+    PURPOSE_CHOICES = [
+        ('new_user_welcome', 'New User Welcome'),
+        ('newsletter_send', 'Newsletter Sending'),
+        ('promotional_campaign', 'Promotional Campaign'),
+        ('product_announcement', 'Product Announcement'),
+        ('system_notification', 'System Notification'),
+        ('custom_use', 'Custom Use'),
+    ]
+    
+    purpose = models.CharField(max_length=50, choices=PURPOSE_CHOICES, unique=True)
+    template = models.ForeignKey(EmailTemplate, on_delete=models.CASCADE, related_name='assignments')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.CharField(max_length=100, blank=True, null=True)
+    
+    class Meta:
+        ordering = ['purpose']
+        verbose_name = 'Email Template Assignment'
+        verbose_name_plural = 'Email Template Assignments'
+    
+    def __str__(self):
+        return f"{self.get_purpose_display()}: {self.template.name}"
+    
+    @classmethod
+    def get_template_for_purpose(cls, purpose):
+        """Get the assigned template for a specific purpose"""
+        try:
+            assignment = cls.objects.get(purpose=purpose, is_active=True)
+            return assignment.template
+        except cls.DoesNotExist:
+            # Fallback to default template of the appropriate type
+            if purpose == 'new_user_welcome':
+                return EmailTemplate.objects.filter(
+                    template_type='welcome',
+                    is_active=True,
+                    is_default=True
+                ).first()
+            elif purpose == 'newsletter_send':
+                return EmailTemplate.objects.filter(
+                    template_type='newsletter',
+                    is_active=True,
+                    is_default=True
+                ).first()
+            elif purpose == 'promotional_campaign':
+                return EmailTemplate.objects.filter(
+                    template_type='promotional',
+                    is_active=True,
+                    is_default=True
+                ).first()
+            elif purpose == 'product_announcement':
+                return EmailTemplate.objects.filter(
+                    template_type='announcement',
+                    is_active=True,
+                    is_default=True
+                ).first()
+            return None

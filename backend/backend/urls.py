@@ -28,7 +28,11 @@ from products.views import (
     upload_product_images, upload_single_image, delete_image, upload_profile_picture,
     create_payment_intent, send_order_confirmation, webhook, send_welcome_email, send_verification_reminder,
     update_stock_after_order, subscribe_newsletter, unsubscribe_newsletter, check_newsletter_subscription,
-    get_newsletter_subscribers, admin_unsubscribe_newsletter, send_newsletter_to_subscriber
+    get_newsletter_subscribers, admin_unsubscribe_newsletter, send_newsletter_to_subscriber,
+    get_email_templates, create_email_template, get_email_template, update_email_template,
+    delete_email_template, send_email_with_template, get_template_assignments, 
+    create_template_assignment, update_template_assignment, delete_template_assignment,
+    get_template_for_purpose
 )
 
 router = DefaultRouter()
@@ -69,6 +73,21 @@ urlpatterns = [
         path('api/newsletter/subscribers/', get_newsletter_subscribers, name='get_newsletter_subscribers'),
         path('api/newsletter/admin-unsubscribe/', admin_unsubscribe_newsletter, name='admin_unsubscribe_newsletter'),
         path('api/newsletter/send-to-subscriber/', send_newsletter_to_subscriber, name='send_newsletter_to_subscriber'),
+        
+        # Email template endpoints
+        path('api/email/templates/', get_email_templates, name='get_email_templates'),
+        path('api/email/templates/create/', create_email_template, name='create_email_template'),
+        path('api/email/templates/<int:template_id>/', get_email_template, name='get_email_template'),
+        path('api/email/templates/<int:template_id>/update/', update_email_template, name='update_email_template'),
+        path('api/email/templates/<int:template_id>/delete/', delete_email_template, name='delete_email_template'),
+        path('api/email/send-with-template/', send_email_with_template, name='send_email_with_template'),
+        
+        # Template assignment endpoints
+        path('api/email/template-assignments/', get_template_assignments, name='get_template_assignments'),
+        path('api/email/template-assignments/create/', create_template_assignment, name='create_template_assignment'),
+        path('api/email/template-assignments/<int:assignment_id>/update/', update_template_assignment, name='update_template_assignment'),
+        path('api/email/template-assignments/<int:assignment_id>/delete/', delete_template_assignment, name='delete_template_assignment'),
+        path('api/email/template-for-purpose/<str:purpose>/', get_template_for_purpose, name='get_template_for_purpose'),
 ]
 
 # Serve static files FIRST (before React catch-all)
