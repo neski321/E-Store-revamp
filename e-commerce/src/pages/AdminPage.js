@@ -571,31 +571,58 @@ const AdminPage = () => {
                 </div>
               </div>
 
-              {/* Newsletter Management Card */}
-              <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="p-8">
-                  <div className="flex items-center mb-6">
-                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
-                      <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
+                  {/* Newsletter Management Card */}
+                  <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div className="p-8">
+                      <div className="flex items-center mb-6">
+                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                          <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-900">Newsletter Management</h3>
+                      </div>
+                      <p className="text-gray-600 mb-6">
+                        Manage newsletter subscriptions, view subscriber analytics, and export subscriber data.
+                      </p>
+                      <Link
+                        to="/newsletter-management"
+                        className="inline-flex items-center justify-center w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg font-medium transition-colors duration-200"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        Manage Newsletter
+                      </Link>
                     </div>
-                    <h3 className="text-xl font-semibold text-gray-900">Newsletter Management</h3>
                   </div>
-                  <p className="text-gray-600 mb-6">
-                    Manage newsletter subscriptions, view subscriber analytics, and export subscriber data.
-                  </p>
-                  <Link
-                    to="/newsletter-management"
-                    className="inline-flex items-center justify-center w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg font-medium transition-colors duration-200"
-                  >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    Manage Newsletter
-                  </Link>
-                </div>
-              </div>
+
+                  {/* Newsletter Templates Card */}
+                  <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                    <div className="p-8">
+                      <div className="flex items-center mb-6">
+                        <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mr-4">
+                          <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-900">Email Templates</h3>
+                      </div>
+                      <p className="text-gray-600 mb-6">
+                        Create and manage email templates for welcome emails, newsletters, and other communications.
+                      </p>
+                      <Link
+                        to="/email-templates"
+                        className="inline-flex items-center justify-center w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-6 rounded-lg font-medium transition-colors duration-200"
+                      >
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Manage Templates
+                      </Link>
+                    </div>
+                  </div>
+
 
               {/* Review Moderation Card - Temporarily Disabled */}
               <div className="bg-white rounded-2xl shadow-lg opacity-60 relative">
@@ -1039,28 +1066,26 @@ const AdminPage = () => {
                               </div>
                               
                               {/* Action Buttons */}
-                              <div className="flex space-x-2">
+                              <div className="flex space-x-1">
                                 <button
                                   onClick={() => handleEmailReply(message)}
-                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center space-x-1"
+                                  className="bg-blue-600 hover:bg-blue-700 text-white p-1.5 rounded transition-colors duration-200"
                                   title="Reply via Email"
                                 >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                   </svg>
-                                  <span>Reply</span>
                                 </button>
                                 
                                 <button
                                   onClick={() => handleDeleteClick(message)}
                                   disabled={loading}
-                                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                                  className="bg-red-600 hover:bg-red-700 text-white p-1.5 rounded transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Delete message"
                                 >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
-                                  <span>Delete</span>
                                 </button>
                               </div>
                             </div>

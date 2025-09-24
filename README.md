@@ -76,6 +76,17 @@ A comprehensive, production-ready e-commerce platform built with React frontend,
   - Product selection modals
   - Search history and suggestions
 
+- **Advanced Email Template System**
+  - Complete email template management system
+  - Enhanced plain text editor with HTML conversion
+  - Template assignment system for different purposes
+  - Environment-aware URL variables for local/production
+  - Rich text editor with formatting tools and preview
+  - Template categorization (welcome, newsletter, promotional, etc.)
+  - Admin template assignment management
+  - Real-time HTML preview from plain text
+  - Professional email template library
+
 - **Newsletter System**
   - Complete newsletter subscription management
   - Footer newsletter signup with validation
@@ -202,6 +213,8 @@ CLOUDFLARE_R2_ACCESS_KEY_ID=your_r2_access_key
 CLOUDFLARE_R2_SECRET_ACCESS_KEY=your_r2_secret_key
 CLOUDFLARE_R2_BUCKET_NAME=your_r2_bucket_name
 CLOUDFLARE_R2_ENDPOINT_URL=your_r2_endpoint_url
+# Frontend URL for email template variables
+FRONTEND_URL=http://localhost:3000
 ```
 
 ### 5. Database Setup
@@ -304,6 +317,36 @@ When running in development mode:
 - Address management
 - Account security settings
 
+## 📧 Advanced Email Template Management System
+
+### Email Template Features
+- **Enhanced Plain Text Editor**: Advanced text editor with formatting tools
+- **Real-time HTML Conversion**: Automatic conversion from plain text to HTML
+- **Template Assignment System**: Assign templates to specific email purposes
+- **Environment-Aware URLs**: Dynamic URL generation for local/production environments
+- **Rich Formatting Support**: Bold, italic, headers, lists, buttons, and more
+- **Live Preview**: Real-time preview of both plain text and HTML versions
+- **Template Categories**: Welcome, newsletter, promotional, announcement, and custom templates
+- **Variable Support**: Dynamic variables like {name}, {email}, {website}, etc.
+- **Professional Templates**: Pre-built professional email templates
+
+### Admin Email Template Management
+- **Template Creation**: Multi-step template creation with enhanced editor
+- **Template Editing**: Full CRUD operations for email templates
+- **Assignment Management**: Assign templates to specific email purposes
+- **Template Library**: Professional template library with categories
+- **Preview System**: Live preview of templates in multiple formats
+- **Bulk Operations**: Manage multiple templates efficiently
+- **Template Analytics**: Track template usage and performance
+
+### Enhanced Text Editor
+- **Formatting Tools**: Bold, italic, headers, lists, buttons, alerts, features
+- **Variable Insertion**: Easy insertion of dynamic variables
+- **Live HTML Preview**: Real-time conversion and preview
+- **Toggle Sections**: Hide/show different editor sections for compact interface
+- **Help System**: Built-in formatting help and examples
+- **Professional Output**: Generates clean, professional HTML emails
+
 ## 📧 Newsletter Management System
 
 ### Newsletter Features
@@ -379,6 +422,19 @@ When running in development mode:
 - `POST /api/user/favorites/` - Add product to favorites
 - `DELETE /api/user/favorites/{id}/` - Remove product from favorites
 - `GET /api/user/favorites/` - Get user favorites
+
+### Email Template Management
+- `GET /api/email/templates/` - Get all email templates (Admin only)
+- `POST /api/email/templates/create/` - Create new email template (Admin only)
+- `GET /api/email/templates/{id}/` - Get specific template details
+- `PUT /api/email/templates/{id}/update/` - Update email template (Admin only)
+- `DELETE /api/email/templates/{id}/delete/` - Delete email template (Admin only)
+- `POST /api/email/send-with-template/` - Send email using template
+- `GET /api/email/template-assignments/` - Get template assignments (Admin only)
+- `POST /api/email/template-assignments/create/` - Create template assignment (Admin only)
+- `PUT /api/email/template-assignments/{id}/update/` - Update assignment (Admin only)
+- `DELETE /api/email/template-assignments/{id}/delete/` - Delete assignment (Admin only)
+- `GET /api/email/template-for-purpose/{purpose}/` - Get template for specific purpose
 
 ### Newsletter Management
 - `POST /api/newsletter/subscribe/` - Subscribe to newsletter
@@ -552,7 +608,7 @@ For support and questions:
 - ✅ **API Improvements**: Added support for multiple product ID filtering
 - ✅ **User Experience**: Streamlined checkout process from favorites
 
-### Version 2.4 - Newsletter Management System (Latest)
+### Version 2.4 - Newsletter Management System
 - ✅ **Complete Newsletter System**: Full newsletter subscription and management
 - ✅ **Admin Newsletter Dashboard**: Professional admin interface for newsletter management
 - ✅ **Subscriber Analytics**: Detailed subscriber statistics and export functionality
@@ -562,7 +618,27 @@ For support and questions:
 - ✅ **Footer Integration**: Seamless newsletter signup in website footer
 - ✅ **Welcome Email System**: Automated welcome emails for new subscribers
 
+### Version 2.5 - Advanced Email Template Management System (Latest)
+- ✅ **Enhanced Email Template System**: Complete template management with advanced features
+- ✅ **Plain Text to HTML Conversion**: Automatic conversion with rich formatting support
+- ✅ **Template Assignment System**: Assign templates to specific email purposes
+- ✅ **Environment-Aware URLs**: Dynamic URL generation for local/production environments
+- ✅ **Enhanced Text Editor**: Advanced editor with formatting tools and live preview
+- ✅ **Template Categories**: Welcome, newsletter, promotional, announcement templates
+- ✅ **Variable Support**: Dynamic variables for personalized emails
+- ✅ **Professional Template Library**: Pre-built professional email templates
+- ✅ **Assignment Management**: Admin interface for managing template assignments
+- ✅ **Performance Optimization**: Database query optimization and frontend caching
+- ✅ **Modal Compactness**: Toggle sections for better user experience
+- ✅ **Legacy Template Support**: Automatic conversion of existing templates
+
 ### Key Improvements in Latest Version
+- **Advanced Email Template System**: Complete template management with enhanced features
+- **Plain Text to HTML Conversion**: Automatic conversion with rich formatting support
+- **Template Assignment Management**: Assign templates to specific email purposes
+- **Environment-Aware URL Variables**: Dynamic URL generation for local/production
+- **Enhanced Text Editor**: Advanced editor with formatting tools and live preview
+- **Performance Optimization**: Database query optimization and frontend caching
 - **Newsletter Management**: Complete newsletter subscription and management system
 - **Admin Newsletter Dashboard**: Professional interface for managing subscribers
 - **Email System**: Advanced email system with cooldown and spam prevention
@@ -577,7 +653,53 @@ For support and questions:
 - **Enhanced Validation**: Real-time form validation and error handling
 - **Mobile Optimization**: Fully responsive design for all devices
 
-### Newsletter Management System (Latest Release)
+### Advanced Email Template Management System (Latest Release)
+- **Enhanced Email Template System**: Complete template management with advanced features
+  - Professional email template creation and management
+  - Enhanced plain text editor with formatting tools
+  - Real-time HTML conversion from plain text
+  - Template assignment system for different email purposes
+  - Environment-aware URL variables for local/production environments
+  - Professional template library with categories
+
+- **Template Assignment Management**:
+  - Assign templates to specific email purposes (welcome, newsletter, promotional, etc.)
+  - Admin interface for managing template assignments
+  - Visual indicators for assignment completion status
+  - Purpose-based template selection system
+  - Assignment analytics and management tools
+
+- **Enhanced Text Editor**:
+  - **Formatting Tools**: Bold, italic, headers, lists, buttons, alerts, features
+  - **Variable Insertion**: Easy insertion of dynamic variables ({name}, {email}, {website}, etc.)
+  - **Live HTML Preview**: Real-time conversion and preview of HTML output
+  - **Toggle Sections**: Hide/show different editor sections for compact interface
+  - **Help System**: Built-in formatting help and examples
+  - **Professional Output**: Generates clean, professional HTML emails
+
+- **Performance & Optimization**:
+  - **Database Optimization**: `select_related` queries to prevent N+1 problems
+  - **Frontend Caching**: Smart caching system for faster loading
+  - **API Performance**: Optimized endpoints for instant template loading
+  - **Modal Compactness**: Toggle sections for better user experience
+  - **Legacy Support**: Automatic conversion of existing templates
+
+- **Backend API Improvements**:
+  - New email template management endpoints (`/api/email/templates/`)
+  - Template assignment endpoints (`/api/email/template-assignments/`)
+  - Enhanced email service with template integration
+  - Environment-aware URL variable injection
+  - Comprehensive error handling and validation
+
+- **UI/UX Improvements**:
+  - Professional email template management interface
+  - Enhanced text editor with formatting tools
+  - Live preview system for templates
+  - Compact modal design with toggle sections
+  - Real-time validation and user feedback
+  - Responsive design for all template features
+
+### Newsletter Management System
 - **Complete Newsletter System**: Full newsletter subscription and management functionality
   - Newsletter subscription from website footer with validation
   - Admin newsletter management dashboard with subscriber analytics

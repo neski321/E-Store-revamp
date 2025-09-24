@@ -7,6 +7,7 @@ from django.template.loader import render_to_string
 from django.conf import settings
 from django.core.cache import cache
 import logging
+from .text_to_html_converter import TextToHtmlConverter
 
 logger = logging.getLogger(__name__)
 
@@ -277,12 +278,75 @@ class EmailService:
     
     @staticmethod
     def send_newsletter_welcome_email(user_email):
-        """Send newsletter welcome email"""
+        """Send newsletter welcome email using template if available"""
         try:
             # Check if we should send this email (prevent duplicates)
             if not EmailService._should_send_email(user_email, 'newsletter_welcome', EmailService.NEWSLETTER_EMAIL_COOLDOWN):
                 logger.info(f"Newsletter welcome email to {user_email} skipped - recently sent")
                 return True  # Return True to not break the subscription flow
+            
+            # Try to use template first
+            try:
+                from .models import EmailTemplate
+                template = EmailTemplate.objects.filter(
+                    template_type='welcome',
+                    is_active=True,
+                    is_default=True
+                ).first()
+                
+                if template:
+                    # Use template with variable replacement
+                    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+                    variables = {
+                        'email': user_email,
+                        'name': 'Valued Customer',  # Default name
+                        'company': 'E-Store',
+                        'website': frontend_url,
+                        'login_url': f'{frontend_url}/login',
+                        'unsubscribe_url': f'{frontend_url}/unsubscribe',
+                        'support_email': 'support@yourstore.com',
+                        'shop_url': f'{frontend_url}/products'
+                    }
+                    subject = template.subject.replace('{email}', user_email)
+                    
+                    # If template has enhanced plain text, convert it to HTML
+                    if template.plain_text_content and template.plain_text_content.strip():
+                        html_content = TextToHtmlConverter.convert_to_html(template.plain_text_content, variables)
+                        plain_text_content = template.plain_text_content
+                    else:
+                        html_content = template.html_content.replace('{email}', user_email)
+                        plain_text_content = ""
+                
+                    # Send email with template content
+                    from django.core.mail import EmailMultiAlternatives
+                    msg = EmailMultiAlternatives(
+                        subject=subject,
+                        body=plain_text_content,
+                        from_email=os.getenv('DEFAULT_FROM_EMAIL', 'noreply@yourstore.com'),
+                        to=[user_email],
+                        headers={
+                            'List-Unsubscribe': f'<mailto:unsubscribe@yourstore.com?subject=Unsubscribe>',
+                            'X-Mailer': 'E-Store Newsletter System',
+                            'Reply-To': 'newsletter@yourstore.com'
+                        }
+                    )
+                    msg.attach_alternative(html_content, "text/html")
+                    msg.send()
+                    
+                    # Increment template usage count
+                    template.increment_usage()
+                    
+                    # Mark email as sent to prevent duplicates
+                    EmailService._mark_email_sent(user_email, 'newsletter_welcome', EmailService.NEWSLETTER_EMAIL_COOLDOWN)
+                    
+                    logger.info(f"Newsletter welcome email sent successfully to {user_email} using template")
+                    return True
+                    
+            except Exception as template_error:
+                logger.warning(f"Failed to use template for welcome email: {template_error}")
+                # Fall back to hardcoded template
+            
+            # Fallback to hardcoded template
             subject = 'Welcome to our Newsletter! 🎉'
             
             html_message = f"""

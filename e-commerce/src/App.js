@@ -27,6 +27,7 @@ import CookiePolicy from './pages/CookiePolicy';
 import TermsOfService from './pages/TermsOfService';
 import Unsubscribe from './pages/Unsubscribe';
 import NewsletterManagement from './pages/NewsletterManagement';
+import EmailTemplateManagement from './pages/EmailTemplateManagement';
 
 function App() {
   return (
@@ -57,9 +58,10 @@ function App() {
           <Route path="/update-product" element={<UpdateProduct />} />
           <Route path="/favorites" element={<FavoritesPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
-          <Route path="/review-moderation" element={<ReviewModeration />} />
-          <Route path="/orders" element={<OrderHistory />} />
-          <Route path="/newsletter-management" element={<NewsletterManagement />} />
+              <Route path="/review-moderation" element={<ReviewModeration />} />
+              <Route path="/orders" element={<OrderHistory />} />
+              <Route path="/newsletter-management" element={<NewsletterManagement />} />
+              <Route path="/email-templates" element={<EmailTemplateManagement />} />
         </Route>
       </Routes>
     </div>

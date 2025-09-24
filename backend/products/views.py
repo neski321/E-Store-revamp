@@ -14,9 +14,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-from .models import Product, Review, NewsletterSubscription
-from .serializers import ProductSerializer, ReviewSerializer, NewsletterSubscriptionSerializer
+from .models import Product, Review, NewsletterSubscription, EmailTemplate, EmailTemplateAssignment
+from .serializers import ProductSerializer, ReviewSerializer, NewsletterSubscriptionSerializer, EmailTemplateSerializer, EmailTemplateAssignmentSerializer
 from .cloudflare_service import cloudflare_r2
+from .text_to_html_converter import TextToHtmlConverter
 import json
 
 # Configure Stripe
@@ -1026,6 +1027,225 @@ def subscribe_newsletter(request):
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# Newsletter Template Views
+@api_view(['GET'])
+def get_email_templates(request):
+    """Get all newsletter templates (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        template_type = request.GET.get('type', None)
+        active_only = request.GET.get('active_only', 'true').lower() == 'true'
+
+        templates = EmailTemplate.objects.all()
+        
+        if template_type:
+            templates = templates.filter(template_type=template_type)
+        
+        if active_only:
+            templates = templates.filter(is_active=True)
+
+        serializer = EmailTemplateSerializer(templates, many=True)
+
+        return Response({
+            'templates': serializer.data,
+            'total_count': templates.count()
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def create_email_template(request):
+    """Create new newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        serializer = EmailTemplateSerializer(data=data, context={'request': request})
+
+        if serializer.is_valid():
+            template = serializer.save()
+            return Response({
+                'message': 'Newsletter template created successfully',
+                'template': EmailTemplateSerializer(template).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def get_email_template(request, template_id):
+    """Get specific newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['PUT'])
+def update_email_template(request, template_id):
+    """Update newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template, data=request.data, partial=True, context={'request': request})
+
+            if serializer.is_valid():
+                template = serializer.save()
+                return Response({
+                    'message': 'Newsletter template updated successfully',
+                    'template': EmailTemplateSerializer(template).data
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['DELETE'])
+def delete_email_template(request, template_id):
+    """Delete newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            template_name = template.name
+            template.delete()
+            return Response({
+                'message': f'Newsletter template "{template_name}" deleted successfully'
+            }, status=status.HTTP_200_OK)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def send_email_with_template(request):
+    """Send newsletter using a template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        template_id = data.get('template_id')
+        email = data.get('email', '').strip().lower()
+        custom_variables = data.get('variables', {})
+
+        if not template_id:
+            return Response({'error': 'Template ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id, is_active=True)
+            
+            # Check if subscriber exists and is active
+            try:
+                subscription = NewsletterSubscription.objects.get(email=email)
+                if not subscription.is_active:
+                    return Response({
+                        'error': 'Subscriber is not active. Cannot send newsletter to unsubscribed users.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except NewsletterSubscription.DoesNotExist:
+                return Response({
+                    'error': 'Email address not found in our newsletter list'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Process template variables
+            frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            
+            # Default URL variables
+            default_variables = {
+                'email': email,
+                'name': custom_variables.get('name', 'Valued Customer'),
+                'company': custom_variables.get('company', 'E-Store'),
+                'website': frontend_url,
+                'login_url': f'{frontend_url}/login',
+                'unsubscribe_url': f'{frontend_url}/unsubscribe?email={email}',
+                'support_email': 'support@yourstore.com',
+                'shop_url': f'{frontend_url}/products'
+            }
+            
+            # Merge with custom variables (custom variables override defaults)
+            variables = {**default_variables, **custom_variables}
+            subject = template.subject
+
+            # Replace variables in subject
+            for key, value in variables.items():
+                subject = subject.replace(f'{{{key}}}', str(value))
+
+            # If template has enhanced plain text, convert it to HTML
+            if template.plain_text_content and template.plain_text_content.strip():
+                html_content = TextToHtmlConverter.convert_to_html(template.plain_text_content, variables)
+                plain_text_content = template.plain_text_content
+            else:
+                html_content = template.html_content
+                plain_text_content = template.plain_text_content or ""
+                
+                # Replace variables in content
+                for key, value in variables.items():
+                    html_content = html_content.replace(f'{{{key}}}', str(value))
+                    plain_text_content = plain_text_content.replace(f'{{{key}}}', str(value))
+
+            # Send newsletter email
+            success = EmailService.send_newsletter_email(subject, html_content, [subscription], True)
+            
+            if success:
+                # Increment template usage count
+                template.increment_usage()
+                
+                return Response({
+                    'message': f'Newsletter sent successfully to {email} using template "{template.name}"'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to send newsletter email'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({
+                'error': 'Template not found or inactive'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['POST'])
 def unsubscribe_newsletter(request):
     """Unsubscribe from newsletter"""
@@ -1052,6 +1272,225 @@ def unsubscribe_newsletter(request):
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# Newsletter Template Views
+@api_view(['GET'])
+def get_email_templates(request):
+    """Get all newsletter templates (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        template_type = request.GET.get('type', None)
+        active_only = request.GET.get('active_only', 'true').lower() == 'true'
+
+        templates = EmailTemplate.objects.all()
+        
+        if template_type:
+            templates = templates.filter(template_type=template_type)
+        
+        if active_only:
+            templates = templates.filter(is_active=True)
+
+        serializer = EmailTemplateSerializer(templates, many=True)
+
+        return Response({
+            'templates': serializer.data,
+            'total_count': templates.count()
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def create_email_template(request):
+    """Create new newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        serializer = EmailTemplateSerializer(data=data, context={'request': request})
+
+        if serializer.is_valid():
+            template = serializer.save()
+            return Response({
+                'message': 'Newsletter template created successfully',
+                'template': EmailTemplateSerializer(template).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def get_email_template(request, template_id):
+    """Get specific newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['PUT'])
+def update_email_template(request, template_id):
+    """Update newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template, data=request.data, partial=True, context={'request': request})
+
+            if serializer.is_valid():
+                template = serializer.save()
+                return Response({
+                    'message': 'Newsletter template updated successfully',
+                    'template': EmailTemplateSerializer(template).data
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['DELETE'])
+def delete_email_template(request, template_id):
+    """Delete newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            template_name = template.name
+            template.delete()
+            return Response({
+                'message': f'Newsletter template "{template_name}" deleted successfully'
+            }, status=status.HTTP_200_OK)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def send_email_with_template(request):
+    """Send newsletter using a template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        template_id = data.get('template_id')
+        email = data.get('email', '').strip().lower()
+        custom_variables = data.get('variables', {})
+
+        if not template_id:
+            return Response({'error': 'Template ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id, is_active=True)
+            
+            # Check if subscriber exists and is active
+            try:
+                subscription = NewsletterSubscription.objects.get(email=email)
+                if not subscription.is_active:
+                    return Response({
+                        'error': 'Subscriber is not active. Cannot send newsletter to unsubscribed users.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except NewsletterSubscription.DoesNotExist:
+                return Response({
+                    'error': 'Email address not found in our newsletter list'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Process template variables
+            frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            
+            # Default URL variables
+            default_variables = {
+                'email': email,
+                'name': custom_variables.get('name', 'Valued Customer'),
+                'company': custom_variables.get('company', 'E-Store'),
+                'website': frontend_url,
+                'login_url': f'{frontend_url}/login',
+                'unsubscribe_url': f'{frontend_url}/unsubscribe?email={email}',
+                'support_email': 'support@yourstore.com',
+                'shop_url': f'{frontend_url}/products'
+            }
+            
+            # Merge with custom variables (custom variables override defaults)
+            variables = {**default_variables, **custom_variables}
+            subject = template.subject
+
+            # Replace variables in subject
+            for key, value in variables.items():
+                subject = subject.replace(f'{{{key}}}', str(value))
+
+            # If template has enhanced plain text, convert it to HTML
+            if template.plain_text_content and template.plain_text_content.strip():
+                html_content = TextToHtmlConverter.convert_to_html(template.plain_text_content, variables)
+                plain_text_content = template.plain_text_content
+            else:
+                html_content = template.html_content
+                plain_text_content = template.plain_text_content or ""
+                
+                # Replace variables in content
+                for key, value in variables.items():
+                    html_content = html_content.replace(f'{{{key}}}', str(value))
+                    plain_text_content = plain_text_content.replace(f'{{{key}}}', str(value))
+
+            # Send newsletter email
+            success = EmailService.send_newsletter_email(subject, html_content, [subscription], True)
+            
+            if success:
+                # Increment template usage count
+                template.increment_usage()
+                
+                return Response({
+                    'message': f'Newsletter sent successfully to {email} using template "{template.name}"'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to send newsletter email'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({
+                'error': 'Template not found or inactive'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['GET'])
 def check_newsletter_subscription(request):
     """Check if email is subscribed to newsletter"""
@@ -1074,6 +1513,225 @@ def check_newsletter_subscription(request):
                 'is_subscribed': False
             }, status=status.HTTP_200_OK)
             
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Newsletter Template Views
+@api_view(['GET'])
+def get_email_templates(request):
+    """Get all newsletter templates (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        template_type = request.GET.get('type', None)
+        active_only = request.GET.get('active_only', 'true').lower() == 'true'
+
+        templates = EmailTemplate.objects.all()
+        
+        if template_type:
+            templates = templates.filter(template_type=template_type)
+        
+        if active_only:
+            templates = templates.filter(is_active=True)
+
+        serializer = EmailTemplateSerializer(templates, many=True)
+
+        return Response({
+            'templates': serializer.data,
+            'total_count': templates.count()
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def create_email_template(request):
+    """Create new newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        serializer = EmailTemplateSerializer(data=data, context={'request': request})
+
+        if serializer.is_valid():
+            template = serializer.save()
+            return Response({
+                'message': 'Newsletter template created successfully',
+                'template': EmailTemplateSerializer(template).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def get_email_template(request, template_id):
+    """Get specific newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['PUT'])
+def update_email_template(request, template_id):
+    """Update newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template, data=request.data, partial=True, context={'request': request})
+
+            if serializer.is_valid():
+                template = serializer.save()
+                return Response({
+                    'message': 'Newsletter template updated successfully',
+                    'template': EmailTemplateSerializer(template).data
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['DELETE'])
+def delete_email_template(request, template_id):
+    """Delete newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            template_name = template.name
+            template.delete()
+            return Response({
+                'message': f'Newsletter template "{template_name}" deleted successfully'
+            }, status=status.HTTP_200_OK)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def send_email_with_template(request):
+    """Send newsletter using a template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        template_id = data.get('template_id')
+        email = data.get('email', '').strip().lower()
+        custom_variables = data.get('variables', {})
+
+        if not template_id:
+            return Response({'error': 'Template ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id, is_active=True)
+            
+            # Check if subscriber exists and is active
+            try:
+                subscription = NewsletterSubscription.objects.get(email=email)
+                if not subscription.is_active:
+                    return Response({
+                        'error': 'Subscriber is not active. Cannot send newsletter to unsubscribed users.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except NewsletterSubscription.DoesNotExist:
+                return Response({
+                    'error': 'Email address not found in our newsletter list'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Process template variables
+            frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            
+            # Default URL variables
+            default_variables = {
+                'email': email,
+                'name': custom_variables.get('name', 'Valued Customer'),
+                'company': custom_variables.get('company', 'E-Store'),
+                'website': frontend_url,
+                'login_url': f'{frontend_url}/login',
+                'unsubscribe_url': f'{frontend_url}/unsubscribe?email={email}',
+                'support_email': 'support@yourstore.com',
+                'shop_url': f'{frontend_url}/products'
+            }
+            
+            # Merge with custom variables (custom variables override defaults)
+            variables = {**default_variables, **custom_variables}
+            subject = template.subject
+
+            # Replace variables in subject
+            for key, value in variables.items():
+                subject = subject.replace(f'{{{key}}}', str(value))
+
+            # If template has enhanced plain text, convert it to HTML
+            if template.plain_text_content and template.plain_text_content.strip():
+                html_content = TextToHtmlConverter.convert_to_html(template.plain_text_content, variables)
+                plain_text_content = template.plain_text_content
+            else:
+                html_content = template.html_content
+                plain_text_content = template.plain_text_content or ""
+                
+                # Replace variables in content
+                for key, value in variables.items():
+                    html_content = html_content.replace(f'{{{key}}}', str(value))
+                    plain_text_content = plain_text_content.replace(f'{{{key}}}', str(value))
+
+            # Send newsletter email
+            success = EmailService.send_newsletter_email(subject, html_content, [subscription], True)
+            
+            if success:
+                # Increment template usage count
+                template.increment_usage()
+                
+                return Response({
+                    'message': f'Newsletter sent successfully to {email} using template "{template.name}"'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to send newsletter email'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({
+                'error': 'Template not found or inactive'
+            }, status=status.HTTP_404_NOT_FOUND)
+
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1104,6 +1762,225 @@ def get_newsletter_subscribers(request):
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# Newsletter Template Views
+@api_view(['GET'])
+def get_email_templates(request):
+    """Get all newsletter templates (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        template_type = request.GET.get('type', None)
+        active_only = request.GET.get('active_only', 'true').lower() == 'true'
+
+        templates = EmailTemplate.objects.all()
+        
+        if template_type:
+            templates = templates.filter(template_type=template_type)
+        
+        if active_only:
+            templates = templates.filter(is_active=True)
+
+        serializer = EmailTemplateSerializer(templates, many=True)
+
+        return Response({
+            'templates': serializer.data,
+            'total_count': templates.count()
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def create_email_template(request):
+    """Create new newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        serializer = EmailTemplateSerializer(data=data, context={'request': request})
+
+        if serializer.is_valid():
+            template = serializer.save()
+            return Response({
+                'message': 'Newsletter template created successfully',
+                'template': EmailTemplateSerializer(template).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def get_email_template(request, template_id):
+    """Get specific newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['PUT'])
+def update_email_template(request, template_id):
+    """Update newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template, data=request.data, partial=True, context={'request': request})
+
+            if serializer.is_valid():
+                template = serializer.save()
+                return Response({
+                    'message': 'Newsletter template updated successfully',
+                    'template': EmailTemplateSerializer(template).data
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['DELETE'])
+def delete_email_template(request, template_id):
+    """Delete newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            template_name = template.name
+            template.delete()
+            return Response({
+                'message': f'Newsletter template "{template_name}" deleted successfully'
+            }, status=status.HTTP_200_OK)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def send_email_with_template(request):
+    """Send newsletter using a template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        template_id = data.get('template_id')
+        email = data.get('email', '').strip().lower()
+        custom_variables = data.get('variables', {})
+
+        if not template_id:
+            return Response({'error': 'Template ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id, is_active=True)
+            
+            # Check if subscriber exists and is active
+            try:
+                subscription = NewsletterSubscription.objects.get(email=email)
+                if not subscription.is_active:
+                    return Response({
+                        'error': 'Subscriber is not active. Cannot send newsletter to unsubscribed users.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except NewsletterSubscription.DoesNotExist:
+                return Response({
+                    'error': 'Email address not found in our newsletter list'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Process template variables
+            frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            
+            # Default URL variables
+            default_variables = {
+                'email': email,
+                'name': custom_variables.get('name', 'Valued Customer'),
+                'company': custom_variables.get('company', 'E-Store'),
+                'website': frontend_url,
+                'login_url': f'{frontend_url}/login',
+                'unsubscribe_url': f'{frontend_url}/unsubscribe?email={email}',
+                'support_email': 'support@yourstore.com',
+                'shop_url': f'{frontend_url}/products'
+            }
+            
+            # Merge with custom variables (custom variables override defaults)
+            variables = {**default_variables, **custom_variables}
+            subject = template.subject
+
+            # Replace variables in subject
+            for key, value in variables.items():
+                subject = subject.replace(f'{{{key}}}', str(value))
+
+            # If template has enhanced plain text, convert it to HTML
+            if template.plain_text_content and template.plain_text_content.strip():
+                html_content = TextToHtmlConverter.convert_to_html(template.plain_text_content, variables)
+                plain_text_content = template.plain_text_content
+            else:
+                html_content = template.html_content
+                plain_text_content = template.plain_text_content or ""
+                
+                # Replace variables in content
+                for key, value in variables.items():
+                    html_content = html_content.replace(f'{{{key}}}', str(value))
+                    plain_text_content = plain_text_content.replace(f'{{{key}}}', str(value))
+
+            # Send newsletter email
+            success = EmailService.send_newsletter_email(subject, html_content, [subscription], True)
+            
+            if success:
+                # Increment template usage count
+                template.increment_usage()
+                
+                return Response({
+                    'message': f'Newsletter sent successfully to {email} using template "{template.name}"'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to send newsletter email'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({
+                'error': 'Template not found or inactive'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 @api_view(['POST'])
 def admin_unsubscribe_newsletter(request):
     """Admin unsubscribe from newsletter (admin only)"""
@@ -1130,6 +2007,225 @@ def admin_unsubscribe_newsletter(request):
         except NewsletterSubscription.DoesNotExist:
             return Response({
                 'error': 'Email address not found in our newsletter list'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Newsletter Template Views
+@api_view(['GET'])
+def get_email_templates(request):
+    """Get all newsletter templates (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        template_type = request.GET.get('type', None)
+        active_only = request.GET.get('active_only', 'true').lower() == 'true'
+
+        templates = EmailTemplate.objects.all()
+        
+        if template_type:
+            templates = templates.filter(template_type=template_type)
+        
+        if active_only:
+            templates = templates.filter(is_active=True)
+
+        serializer = EmailTemplateSerializer(templates, many=True)
+
+        return Response({
+            'templates': serializer.data,
+            'total_count': templates.count()
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def create_email_template(request):
+    """Create new newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        serializer = EmailTemplateSerializer(data=data, context={'request': request})
+
+        if serializer.is_valid():
+            template = serializer.save()
+            return Response({
+                'message': 'Newsletter template created successfully',
+                'template': EmailTemplateSerializer(template).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def get_email_template(request, template_id):
+    """Get specific newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['PUT'])
+def update_email_template(request, template_id):
+    """Update newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template, data=request.data, partial=True, context={'request': request})
+
+            if serializer.is_valid():
+                template = serializer.save()
+                return Response({
+                    'message': 'Newsletter template updated successfully',
+                    'template': EmailTemplateSerializer(template).data
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['DELETE'])
+def delete_email_template(request, template_id):
+    """Delete newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            template_name = template.name
+            template.delete()
+            return Response({
+                'message': f'Newsletter template "{template_name}" deleted successfully'
+            }, status=status.HTTP_200_OK)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def send_email_with_template(request):
+    """Send newsletter using a template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        template_id = data.get('template_id')
+        email = data.get('email', '').strip().lower()
+        custom_variables = data.get('variables', {})
+
+        if not template_id:
+            return Response({'error': 'Template ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id, is_active=True)
+            
+            # Check if subscriber exists and is active
+            try:
+                subscription = NewsletterSubscription.objects.get(email=email)
+                if not subscription.is_active:
+                    return Response({
+                        'error': 'Subscriber is not active. Cannot send newsletter to unsubscribed users.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except NewsletterSubscription.DoesNotExist:
+                return Response({
+                    'error': 'Email address not found in our newsletter list'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Process template variables
+            frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            
+            # Default URL variables
+            default_variables = {
+                'email': email,
+                'name': custom_variables.get('name', 'Valued Customer'),
+                'company': custom_variables.get('company', 'E-Store'),
+                'website': frontend_url,
+                'login_url': f'{frontend_url}/login',
+                'unsubscribe_url': f'{frontend_url}/unsubscribe?email={email}',
+                'support_email': 'support@yourstore.com',
+                'shop_url': f'{frontend_url}/products'
+            }
+            
+            # Merge with custom variables (custom variables override defaults)
+            variables = {**default_variables, **custom_variables}
+            subject = template.subject
+
+            # Replace variables in subject
+            for key, value in variables.items():
+                subject = subject.replace(f'{{{key}}}', str(value))
+
+            # If template has enhanced plain text, convert it to HTML
+            if template.plain_text_content and template.plain_text_content.strip():
+                html_content = TextToHtmlConverter.convert_to_html(template.plain_text_content, variables)
+                plain_text_content = template.plain_text_content
+            else:
+                html_content = template.html_content
+                plain_text_content = template.plain_text_content or ""
+                
+                # Replace variables in content
+                for key, value in variables.items():
+                    html_content = html_content.replace(f'{{{key}}}', str(value))
+                    plain_text_content = plain_text_content.replace(f'{{{key}}}', str(value))
+
+            # Send newsletter email
+            success = EmailService.send_newsletter_email(subject, html_content, [subscription], True)
+            
+            if success:
+                # Increment template usage count
+                template.increment_usage()
+                
+                return Response({
+                    'message': f'Newsletter sent successfully to {email} using template "{template.name}"'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to send newsletter email'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({
+                'error': 'Template not found or inactive'
             }, status=status.HTTP_404_NOT_FOUND)
 
     except Exception as e:
@@ -1187,3 +2283,351 @@ def send_newsletter_to_subscriber(request):
 
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# Newsletter Template Views
+@api_view(['GET'])
+def get_email_templates(request):
+    """Get all newsletter templates (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        template_type = request.GET.get('type', None)
+        active_only = request.GET.get('active_only', 'true').lower() == 'true'
+
+        templates = EmailTemplate.objects.all()
+        
+        if template_type:
+            templates = templates.filter(template_type=template_type)
+        
+        if active_only:
+            templates = templates.filter(is_active=True)
+
+        serializer = EmailTemplateSerializer(templates, many=True)
+
+        return Response({
+            'templates': serializer.data,
+            'total_count': templates.count()
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def create_email_template(request):
+    """Create new newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        serializer = EmailTemplateSerializer(data=data, context={'request': request})
+
+        if serializer.is_valid():
+            template = serializer.save()
+            return Response({
+                'message': 'Newsletter template created successfully',
+                'template': EmailTemplateSerializer(template).data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def get_email_template(request, template_id):
+    """Get specific newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['PUT'])
+def update_email_template(request, template_id):
+    """Update newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            serializer = EmailTemplateSerializer(template, data=request.data, partial=True, context={'request': request})
+
+            if serializer.is_valid():
+                template = serializer.save()
+                return Response({
+                    'message': 'Newsletter template updated successfully',
+                    'template': EmailTemplateSerializer(template).data
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['DELETE'])
+def delete_email_template(request, template_id):
+    """Delete newsletter template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id)
+            template_name = template.name
+            template.delete()
+            return Response({
+                'message': f'Newsletter template "{template_name}" deleted successfully'
+            }, status=status.HTTP_200_OK)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def send_email_with_template(request):
+    """Send newsletter using a template (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        data = request.data
+        template_id = data.get('template_id')
+        email = data.get('email', '').strip().lower()
+        custom_variables = data.get('variables', {})
+
+        if not template_id:
+            return Response({'error': 'Template ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            template = EmailTemplate.objects.get(id=template_id, is_active=True)
+            
+            # Check if subscriber exists and is active
+            try:
+                subscription = NewsletterSubscription.objects.get(email=email)
+                if not subscription.is_active:
+                    return Response({
+                        'error': 'Subscriber is not active. Cannot send newsletter to unsubscribed users.'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except NewsletterSubscription.DoesNotExist:
+                return Response({
+                    'error': 'Email address not found in our newsletter list'
+                }, status=status.HTTP_404_NOT_FOUND)
+
+            # Process template variables
+            frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            
+            # Default URL variables
+            default_variables = {
+                'email': email,
+                'name': custom_variables.get('name', 'Valued Customer'),
+                'company': custom_variables.get('company', 'E-Store'),
+                'website': frontend_url,
+                'login_url': f'{frontend_url}/login',
+                'unsubscribe_url': f'{frontend_url}/unsubscribe?email={email}',
+                'support_email': 'support@yourstore.com',
+                'shop_url': f'{frontend_url}/products'
+            }
+            
+            # Merge with custom variables (custom variables override defaults)
+            variables = {**default_variables, **custom_variables}
+            subject = template.subject
+
+            # Replace variables in subject
+            for key, value in variables.items():
+                subject = subject.replace(f'{{{key}}}', str(value))
+
+            # If template has enhanced plain text, convert it to HTML
+            if template.plain_text_content and template.plain_text_content.strip():
+                html_content = TextToHtmlConverter.convert_to_html(template.plain_text_content, variables)
+                plain_text_content = template.plain_text_content
+            else:
+                html_content = template.html_content
+                plain_text_content = template.plain_text_content or ""
+                
+                # Replace variables in content
+                for key, value in variables.items():
+                    html_content = html_content.replace(f'{{{key}}}', str(value))
+                    plain_text_content = plain_text_content.replace(f'{{{key}}}', str(value))
+
+            # Send newsletter email
+            success = EmailService.send_newsletter_email(subject, html_content, [subscription], True)
+            
+            if success:
+                # Increment template usage count
+                template.increment_usage()
+                
+                return Response({
+                    'message': f'Newsletter sent successfully to {email} using template "{template.name}"'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to send newsletter email'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except EmailTemplate.DoesNotExist:
+            return Response({
+                'error': 'Template not found or inactive'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Email Template Assignment Views
+@api_view(["GET"])
+def get_template_assignments(request):
+    """Get all template assignments (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.method == "GET":
+            # Use select_related to prevent N+1 queries when accessing template data
+            assignments = EmailTemplateAssignment.objects.select_related('template').all().order_by("purpose")
+            serializer = EmailTemplateAssignmentSerializer(assignments, many=True)
+            return Response({
+                "assignments": serializer.data
+            }, status=status.HTTP_200_OK)
+            
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+def create_template_assignment(request):
+    """Create a new template assignment (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = EmailTemplateAssignmentSerializer(data=request.data, context={"request": request})
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "message": "Template assignment created successfully",
+                "assignment": serializer.data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response({
+                "error": "Invalid data",
+                "details": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["PUT"])
+def update_template_assignment(request, assignment_id):
+    """Update a template assignment (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            assignment = EmailTemplateAssignment.objects.get(id=assignment_id)
+        except EmailTemplateAssignment.DoesNotExist:
+            return Response({
+                "error": "Template assignment not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = EmailTemplateAssignmentSerializer(assignment, data=request.data, partial=True, context={"request": request})
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "message": "Template assignment updated successfully",
+                "assignment": serializer.data
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                "error": "Invalid data",
+                "details": serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["DELETE"])
+def delete_template_assignment(request, assignment_id):
+    """Delete a template assignment (admin only)"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            assignment = EmailTemplateAssignment.objects.get(id=assignment_id)
+        except EmailTemplateAssignment.DoesNotExist:
+            return Response({
+                "error": "Template assignment not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        assignment.delete()
+        return Response({
+            "message": "Template assignment deleted successfully"
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+def get_template_for_purpose(request, purpose):
+    """Get the assigned template for a specific purpose"""
+    try:
+        template = EmailTemplateAssignment.get_template_for_purpose(purpose)
+        
+        if template:
+            serializer = EmailTemplateSerializer(template)
+            return Response({
+                "template": serializer.data,
+                "purpose": purpose
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                "error": f"No template assigned for purpose: {purpose}"
+            }, status=status.HTTP_404_NOT_FOUND)
+            
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
