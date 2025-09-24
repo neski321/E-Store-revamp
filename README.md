@@ -322,7 +322,7 @@ When running in development mode:
 ### Email Template Features
 - **Enhanced Plain Text Editor**: Advanced text editor with formatting tools
 - **Real-time HTML Conversion**: Automatic conversion from plain text to HTML
-- **Template Assignment System**: Assign templates to specific email purposes
+- **Template Assignment System**: Assign and unassign templates to specific email purposes
 - **Environment-Aware URLs**: Dynamic URL generation for local/production environments
 - **Rich Formatting Support**: Bold, italic, headers, lists, buttons, and more
 - **Live Preview**: Real-time preview of both plain text and HTML versions
@@ -333,7 +333,7 @@ When running in development mode:
 ### Admin Email Template Management
 - **Template Creation**: Multi-step template creation with enhanced editor
 - **Template Editing**: Full CRUD operations for email templates
-- **Assignment Management**: Assign templates to specific email purposes
+- **Assignment Management**: Assign and unassign templates to specific email purposes
 - **Template Library**: Professional template library with categories
 - **Preview System**: Live preview of templates in multiple formats
 - **Bulk Operations**: Manage multiple templates efficiently
@@ -434,6 +434,7 @@ When running in development mode:
 - `POST /api/email/template-assignments/create/` - Create template assignment (Admin only)
 - `PUT /api/email/template-assignments/{id}/update/` - Update assignment (Admin only)
 - `DELETE /api/email/template-assignments/{id}/delete/` - Delete assignment (Admin only)
+- `POST /api/email/template-assignments/{id}/unassign/` - Unassign template from purpose (Admin only)
 - `GET /api/email/template-for-purpose/{purpose}/` - Get template for specific purpose
 
 ### Newsletter Management
@@ -635,7 +636,7 @@ For support and questions:
 ### Key Improvements in Latest Version
 - **Advanced Email Template System**: Complete template management with enhanced features
 - **Plain Text to HTML Conversion**: Automatic conversion with rich formatting support
-- **Template Assignment Management**: Assign templates to specific email purposes
+- **Template Assignment Management**: Assign and unassign templates to specific email purposes
 - **Environment-Aware URL Variables**: Dynamic URL generation for local/production
 - **Enhanced Text Editor**: Advanced editor with formatting tools and live preview
 - **Performance Optimization**: Database query optimization and frontend caching
@@ -663,8 +664,8 @@ For support and questions:
   - Professional template library with categories
 
 - **Template Assignment Management**:
-  - Assign templates to specific email purposes (welcome, newsletter, promotional, etc.)
-  - Admin interface for managing template assignments
+  - Assign and unassign templates to specific email purposes (welcome, newsletter, promotional, etc.)
+  - Admin interface for managing template assignments with unassign functionality
   - Visual indicators for assignment completion status
   - Purpose-based template selection system
   - Assignment analytics and management tools

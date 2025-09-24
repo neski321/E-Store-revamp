@@ -2607,7 +2607,34 @@ def delete_template_assignment(request, assignment_id):
         return Response({
             "message": "Template assignment deleted successfully"
         }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+def unassign_template_assignment(request, assignment_id):
+    """Unassign a template assignment (admin only) - semantic alias for delete"""
+    try:
+        # Check if user is admin
+        user_role = request.headers.get('X-User-Role', 'user')
+        if user_role != 'admin':
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            assignment = EmailTemplateAssignment.objects.get(id=assignment_id)
+            assignment_name = assignment.get_purpose_display()
+            template_name = assignment.template.name
+        except EmailTemplateAssignment.DoesNotExist:
+            return Response({
+                "error": "Template assignment not found"
+            }, status=status.HTTP_404_NOT_FOUND)
         
+        assignment.delete()
+        return Response({
+            "message": f"Template '{template_name}' has been unassigned from '{assignment_name}' purpose"
+        }, status=status.HTTP_200_OK)
+
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

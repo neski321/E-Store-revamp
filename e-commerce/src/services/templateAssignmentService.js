@@ -140,6 +140,38 @@ class TemplateAssignmentService {
   }
 
   /**
+   * Unassign a template assignment (semantic alias for delete)
+   * @param {number} assignmentId - Assignment ID
+   * @param {Object} currentUser - Current user object from AuthContext
+   * @param {string} role - User role from AuthContext
+   * @returns {Promise<Object>} Unassignment result
+   */
+  static async unassignAssignment(assignmentId, currentUser = null, role = 'user') {
+    try {
+      const url = `${API_BASE_URL}/email/template-assignments/${assignmentId}/unassign/`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': currentUser?.uid || '',
+          'X-User-Role': role || 'user',
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error unassigning template assignment:', error);
+      throw new Error(error.message || 'Failed to unassign template assignment');
+    }
+  }
+
+  /**
    * Get template assigned for a specific purpose
    * @param {string} purpose - Purpose key
    * @param {Object} currentUser - Current user object from AuthContext
