@@ -2348,10 +2348,16 @@ def send_newsletter_to_subscriber(request):
                     personalized_content = content.replace('{email}', email)
                     personalized_subject = subject.replace('{email}', email)
                     
+                    # Create a mock subscription object for non-subscribers
+                    class MockSubscription:
+                        def __init__(self, email):
+                            self.email = email
+                            self.is_active = True
+                    
                     success = EmailService.send_newsletter_email(
                         personalized_subject, 
                         personalized_content, 
-                        [{'email': email, 'is_active': True}],  # Mock subscription object
+                        [MockSubscription(email)],  # Mock subscription object
                         is_html
                     )
                     if success:
