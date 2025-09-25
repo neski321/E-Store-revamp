@@ -2233,7 +2233,7 @@ def send_email_with_template(request):
 
 @api_view(['POST'])
 def send_newsletter_to_subscriber(request):
-    """Send newsletter to specific subscriber or multiple subscribers (admin only)"""
+    """Send newsletter to specific subscriber (admin only)"""
     try:
         # Check if user is admin
         user_role = request.headers.get('X-User-Role', 'user')
@@ -2241,222 +2241,45 @@ def send_newsletter_to_subscriber(request):
             return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
 
         data = request.data
-        emails = data.get('emails', [])  # Can be single email or list of emails
+        email = data.get('email', '').strip().lower()
         subject = data.get('subject', '').strip()
         content = data.get('content', '').strip()
         is_html = data.get('is_html', True)
-        template_id = data.get('template_id')
-        template_variables = data.get('template_variables', {})
-        send_to_non_subscribers = data.get('send_to_non_subscribers', False)
 
-        # Handle single email as string for backward compatibility
-        if isinstance(emails, str):
-            emails = [emails]
-        
-        # Remove duplicates and normalize emails
-        emails = list(set([email.strip().lower() for email in emails if email.strip()]))
-        
-        if not emails:
-            return Response({'error': 'At least one email address is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not email:
+            return Response({'error': 'Email address is required'}, status=status.HTTP_400_BAD_REQUEST)
         
         if not subject:
             return Response({'error': 'Subject is required'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if not content and not template_id:
-            return Response({'error': 'Content or template is required'}, status=status.HTTP_400_BAD_REQUEST)
+        if not content:
+            return Response({'error': 'Content is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Process template if provided
-        if template_id:
-            try:
-                template = EmailTemplate.objects.get(id=template_id, is_active=True)
-                subject = template.subject
-                content = template.html_content
-                
-                # Replace template variables
-                variables = {
-                    'email': '',  # Will be set per recipient
-                    'name': template_variables.get('name', 'Valued Customer'),
-                    'company': template_variables.get('company', 'E-Store'),
-                    'website': template_variables.get('website', os.getenv('FRONTEND_URL', 'http://localhost:3000')),
-                    'login_url': template_variables.get('login_url', f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/login"),
-                    'unsubscribe_url': template_variables.get('unsubscribe_url', f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/unsubscribe"),
-                    'support_email': template_variables.get('support_email', 'support@yourstore.com'),
-                    'shop_url': template_variables.get('shop_url', f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products")
-                }
-                
-                # Replace variables in subject and content
-                for key, value in variables.items():
-                    subject = subject.replace(f'{{{key}}}', str(value))
-                    content = content.replace(f'{{{key}}}', str(value))
-                    
-            except EmailTemplate.DoesNotExist:
-                return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            # Get the subscriber
+            subscription = NewsletterSubscription.objects.get(email=email)
+            
+            if not subscription.is_active:
+                return Response({
+                    'error': 'Subscriber is not active. Cannot send newsletter to unsubscribed users.'
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        # Process recipients
-        valid_subscribers = []
-        non_subscribers = []
-        inactive_subscribers = []
-        
-        for email in emails:
-            try:
-                subscription = NewsletterSubscription.objects.get(email=email)
-                if subscription.is_active:
-                    valid_subscribers.append(subscription)
-                else:
-                    inactive_subscribers.append(email)
-            except NewsletterSubscription.DoesNotExist:
-                non_subscribers.append(email)
+            # Send newsletter email
+            success = EmailService.send_newsletter_email(subject, content, [subscription], is_html)
+            
+            if success:
+                return Response({
+                    'message': f'Newsletter sent successfully to {email}'
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'error': 'Failed to send newsletter email'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # Check if we can send to non-subscribers
-        if non_subscribers and not send_to_non_subscribers:
+        except NewsletterSubscription.DoesNotExist:
             return Response({
-                'error': f'Email addresses not found in newsletter list: {", ".join(non_subscribers)}. Enable "Send to non-subscribers" to send to these addresses.',
-                'non_subscribers': non_subscribers
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Send emails
-        success_count = 0
-        failed_emails = []
-        
-        # Send to valid subscribers
-        if valid_subscribers:
-            for subscription in valid_subscribers:
-                try:
-                    # Replace email variable for this recipient
-                    personalized_content = content.replace('{email}', subscription.email)
-                    personalized_subject = subject.replace('{email}', subscription.email)
-                    
-                    success = EmailService.send_newsletter_email(
-                        personalized_subject, 
-                        personalized_content, 
-                        [subscription], 
-                        is_html
-                    )
-                    if success:
-                        success_count += 1
-                    else:
-                        failed_emails.append(subscription.email)
-                except Exception as e:
-                    failed_emails.append(subscription.email)
-                    print(f"Failed to send to {subscription.email}: {str(e)}")
-
-        # Send to non-subscribers if allowed
-        if non_subscribers and send_to_non_subscribers:
-            for email in non_subscribers:
-                try:
-                    # Replace email variable for this recipient
-                    personalized_content = content.replace('{email}', email)
-                    personalized_subject = subject.replace('{email}', email)
-                    
-                    success = EmailService.send_newsletter_email(
-                        personalized_subject, 
-                        personalized_content, 
-                        [{'email': email, 'is_active': True}],  # Mock subscription object
-                        is_html
-                    )
-                    if success:
-                        success_count += 1
-                    else:
-                        failed_emails.append(email)
-                except Exception as e:
-                    failed_emails.append(email)
-                    print(f"Failed to send to {email}: {str(e)}")
-
-        # Prepare response
-        response_data = {
-            'message': f'Newsletter sent successfully to {success_count} recipient(s)',
-            'success_count': success_count,
-            'total_recipients': len(emails)
-        }
-        
-        if failed_emails:
-            response_data['failed_emails'] = failed_emails
-            response_data['failed_count'] = len(failed_emails)
-        
-        if inactive_subscribers:
-            response_data['inactive_subscribers'] = inactive_subscribers
-            response_data['warning'] = f'Skipped {len(inactive_subscribers)} inactive subscriber(s)'
-        
-        if success_count == 0:
-            return Response({
-                'error': 'Failed to send newsletter to any recipients',
-                'details': response_data
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-        return Response(response_data, status=status.HTTP_200_OK)
-
-    except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@api_view(['POST'])
-def send_newsletter_to_all_subscribers(request):
-    """Send newsletter to all active subscribers (admin only)"""
-    try:
-        # Check if user is admin
-        user_role = request.headers.get('X-User-Role', 'user')
-        if user_role != 'admin':
-            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
-
-        data = request.data
-        subject = data.get('subject', '').strip()
-        content = data.get('content', '').strip()
-        is_html = data.get('is_html', True)
-        template_id = data.get('template_id')
-        template_variables = data.get('template_variables', {})
-        
-        if not subject:
-            return Response({'error': 'Subject is required'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if not content and not template_id:
-            return Response({'error': 'Content or template is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Process template if provided
-        if template_id:
-            try:
-                template = EmailTemplate.objects.get(id=template_id, is_active=True)
-                subject = template.subject
-                content = template.html_content
-                
-                # Replace template variables
-                variables = {
-                    'email': '',  # Will be set per recipient
-                    'name': template_variables.get('name', 'Valued Customer'),
-                    'company': template_variables.get('company', 'E-Store'),
-                    'website': template_variables.get('website', os.getenv('FRONTEND_URL', 'http://localhost:3000')),
-                    'login_url': template_variables.get('login_url', f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/login"),
-                    'unsubscribe_url': template_variables.get('unsubscribe_url', f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/unsubscribe"),
-                    'support_email': template_variables.get('support_email', 'support@yourstore.com'),
-                    'shop_url': template_variables.get('shop_url', f"{os.getenv('FRONTEND_URL', 'http://localhost:3000')}/products")
-                }
-                
-                # Replace variables in subject and content
-                for key, value in variables.items():
-                    subject = subject.replace(f'{{{key}}}', str(value))
-                    content = content.replace(f'{{{key}}}', str(value))
-                    
-            except EmailTemplate.DoesNotExist:
-                return Response({'error': 'Template not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Get all active subscribers
-        active_subscribers = NewsletterSubscription.objects.filter(is_active=True)
-        
-        if not active_subscribers.exists():
-            return Response({
-                'error': 'No active subscribers found'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        # Send newsletter to all active subscribers
-        success = EmailService.send_newsletter_email(subject, content, list(active_subscribers), is_html)
-        
-        if success:
-            return Response({
-                'message': f'Newsletter sent successfully to {active_subscribers.count()} active subscribers',
-                'recipient_count': active_subscribers.count()
-            }, status=status.HTTP_200_OK)
-        else:
-            return Response({
-                'error': 'Failed to send newsletter email'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'error': 'Email address not found in our newsletter list'
+            }, status=status.HTTP_404_NOT_FOUND)
 
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

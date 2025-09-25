@@ -105,32 +105,6 @@ class Dimension(models.Model):
     height = models.FloatField()
     depth = models.FloatField()
 
-class NewsletterSubscription(models.Model):
-    email = models.EmailField(unique=True, db_index=True)
-    is_active = models.BooleanField(default=True)
-    subscribed_at = models.DateTimeField(auto_now_add=True)
-    unsubscribed_at = models.DateTimeField(null=True, blank=True)
-    subscription_source = models.CharField(max_length=100, default='footer')  # footer, signup, etc.
-    user_id = models.CharField(max_length=100, blank=True, null=True)  # Link to user if authenticated
-    preferences = models.JSONField(default=dict)  # Store user preferences for email types
-
-    class Meta:
-        ordering = ['-subscribed_at']
-        indexes = [
-            models.Index(fields=['email', 'is_active']),
-            models.Index(fields=['is_active']),
-            models.Index(fields=['subscribed_at']),
-        ]
-
-    def __str__(self):
-        return f"Newsletter: {self.email} ({'Active' if self.is_active else 'Inactive'})"
-
-    def unsubscribe(self):
-        """Mark subscription as inactive"""
-        self.is_active = False
-        self.unsubscribed_at = timezone.now()
-        self.save()
-
 
 class EmailTemplate(models.Model):
     TEMPLATE_TYPES = [
@@ -252,3 +226,35 @@ class EmailTemplateAssignment(models.Model):
                     is_default=True
                 ).first()
             return None
+
+
+class NewsletterSubscription(models.Model):
+    """
+    Model for managing newsletter subscriptions
+    """
+    email = models.EmailField(db_index=True, max_length=254, unique=True)
+    is_active = models.BooleanField(default=True)
+    subscribed_at = models.DateTimeField(auto_now_add=True)
+    unsubscribed_at = models.DateTimeField(blank=True, null=True)
+    subscription_source = models.CharField(default='footer', max_length=100)
+    user_id = models.CharField(blank=True, max_length=100, null=True)
+    preferences = models.JSONField(default=dict)
+    
+    class Meta:
+        ordering = ['-subscribed_at']
+        indexes = [
+            models.Index(fields=['email', 'is_active'], name='products_ne_email_ef14a8_idx'),
+            models.Index(fields=['is_active'], name='products_ne_is_acti_8cfd57_idx'),
+            models.Index(fields=['subscribed_at'], name='products_ne_subscri_ecc807_idx'),
+        ]
+        verbose_name = 'Newsletter Subscription'
+        verbose_name_plural = 'Newsletter Subscriptions'
+    
+    def __str__(self):
+        return f"{self.email} ({'Active' if self.is_active else 'Inactive'})"
+    
+    def unsubscribe(self):
+        """Mark subscription as inactive"""
+        self.is_active = False
+        self.unsubscribed_at = timezone.now()
+        self.save()

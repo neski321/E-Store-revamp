@@ -28,7 +28,7 @@ from products.views import (
     upload_product_images, upload_single_image, delete_image, upload_profile_picture,
     create_payment_intent, send_order_confirmation, webhook, send_welcome_email, send_verification_reminder,
     update_stock_after_order, subscribe_newsletter, unsubscribe_newsletter, check_newsletter_subscription,
-    get_newsletter_subscribers, admin_unsubscribe_newsletter, send_newsletter_to_subscriber,
+    get_newsletter_subscribers, admin_unsubscribe_newsletter, send_newsletter_to_subscriber, send_newsletter_to_all_subscribers,
     get_email_templates, create_email_template, get_email_template, update_email_template,
     delete_email_template, send_email_with_template, get_template_assignments, 
     create_template_assignment, update_template_assignment, delete_template_assignment,
@@ -73,6 +73,7 @@ urlpatterns = [
         path('api/newsletter/subscribers/', get_newsletter_subscribers, name='get_newsletter_subscribers'),
         path('api/newsletter/admin-unsubscribe/', admin_unsubscribe_newsletter, name='admin_unsubscribe_newsletter'),
         path('api/newsletter/send-to-subscriber/', send_newsletter_to_subscriber, name='send_newsletter_to_subscriber'),
+        path('api/newsletter/send-to-all/', send_newsletter_to_all_subscribers, name='send_newsletter_to_all_subscribers'),
         
         # Email template endpoints
         path('api/email/templates/', get_email_templates, name='get_email_templates'),

@@ -186,17 +186,21 @@ class NewsletterService {
   }
 
   /**
-   * Send newsletter to specific subscriber (admin only)
-   * @param {string} email - Email address to send newsletter to
+   * Send newsletter to specific subscriber(s) (admin only)
+   * @param {string|Array} emails - Email address(es) to send newsletter to
    * @param {string} subject - Newsletter subject
    * @param {string} content - Newsletter content
    * @param {boolean} isHtml - Whether content is HTML
+   * @param {boolean} sendToNonSubscribers - Whether to allow sending to non-subscribers
    * @param {Object} currentUser - Current user object from AuthContext
    * @param {string} role - User role from AuthContext
    * @returns {Promise<Object>} Response data
    */
-  static async sendNewsletterToSubscriber(email, subject, content, isHtml = true, currentUser = null, role = 'user') {
+  static async sendNewsletterToSubscriber(emails, subject, content, isHtml = true, sendToNonSubscribers = false, currentUser = null, role = 'user') {
     try {
+      // Handle backward compatibility - single email as string
+      const emailList = Array.isArray(emails) ? emails : [emails];
+      
       const response = await fetch(`${API_BASE_URL}/newsletter/send-to-subscriber/`, {
         method: 'POST',
         headers: {
@@ -205,10 +209,11 @@ class NewsletterService {
           'X-User-Role': role || 'user',
         },
         body: JSON.stringify({
-          email: email.trim().toLowerCase(),
+          emails: emailList.map(email => email.trim().toLowerCase()),
           subject: subject.trim(),
           content: content.trim(),
-          is_html: isHtml
+          is_html: isHtml,
+          send_to_non_subscribers: sendToNonSubscribers
         }),
       });
 
@@ -218,9 +223,52 @@ class NewsletterService {
         throw new Error(data.error || 'Failed to send newsletter to subscriber');
       }
 
-      return data;
+      return { success: true, ...data };
     } catch (error) {
       console.error('Send newsletter to subscriber error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send newsletter to all active subscribers (admin only)
+   * @param {Object} newsletterData - Newsletter data
+   * @param {string} newsletterData.subject - Newsletter subject
+   * @param {string} newsletterData.content - Newsletter content
+   * @param {boolean} newsletterData.is_html - Whether content is HTML
+   * @param {number} newsletterData.template_id - Optional template ID
+   * @param {Object} newsletterData.template_variables - Optional template variables
+   * @param {Object} currentUser - Current user object from AuthContext
+   * @param {string} role - User role from AuthContext
+   * @returns {Promise<Object>} Response data
+   */
+  static async sendToAllSubscribers(newsletterData, currentUser = null, role = 'user') {
+    try {
+      const response = await fetch(`${API_BASE_URL}/newsletter/send-to-all/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-ID': currentUser?.uid || '',
+          'X-User-Role': role || 'user',
+        },
+        body: JSON.stringify({
+          subject: newsletterData.subject?.trim(),
+          content: newsletterData.content?.trim(),
+          is_html: newsletterData.is_html || true,
+          template_id: newsletterData.template_id,
+          template_variables: newsletterData.template_variables || {}
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send newsletter to all subscribers');
+      }
+
+      return { success: true, ...data };
+    } catch (error) {
+      console.error('Send newsletter to all subscribers error:', error);
       throw error;
     }
   }
