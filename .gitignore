@@ -1,3 +1,4 @@
 backend/backend/.env
 e-commerce/.env
 backend/.env
+backend/update_templates_modern_layout.py

@@ -4,6 +4,7 @@ import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
 import EmailTemplateService from '../services/emailTemplateService';
 import TemplateAssignmentService from '../services/templateAssignmentService';
+import NewsletterService from '../services/newsletterService';
 import EnhancedTextEditor from '../components/EnhancedTextEditor';
 
 const EmailTemplateManagement = () => {
@@ -27,10 +28,32 @@ const EmailTemplateManagement = () => {
   const [showUnassignModal, setShowUnassignModal] = useState(false);
   const [unassignData, setUnassignData] = useState(null);
   const [unassignSuccess, setUnassignSuccess] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteData, setDeleteData] = useState(null);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [sendingTemplate, setSendingTemplate] = useState(null);
-  const [sendEmail, setSendEmail] = useState('');
-  const [sendVariables, setSendVariables] = useState({});
+  
+  // Enhanced newsletter sending states
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterCustomEmail, setNewsletterCustomEmail] = useState('');
+  const [newsletterEmailType, setNewsletterEmailType] = useState('subscriber'); // 'subscriber', 'custom', 'multiple', 'all'
+  const [selectedSubscribers, setSelectedSubscribers] = useState([]);
+  const [newsletterSubject, setNewsletterSubject] = useState('');
+  const [newsletterContent, setNewsletterContent] = useState('');
+  const [newsletterIsHtml, setNewsletterIsHtml] = useState(true);
+  const [sendToNonSubscribers, setSendToNonSubscribers] = useState(false);
+  const [subscriberSearchTerm, setSubscriberSearchTerm] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templateVariables, setTemplateVariables] = useState({});
+  const [useTemplate, setUseTemplate] = useState(false);
+  const [sendingNewsletter, setSendingNewsletter] = useState(false);
+  
+  // Newsletter subscriber data
+  const [subscribers, setSubscribers] = useState([]);
+  const [subscriberStats, setSubscriberStats] = useState({
+    totalCount: 0,
+    activeCount: 0
+  });
 
   // Template form states
   const [templateForm, setTemplateForm] = useState({
@@ -133,17 +156,33 @@ const EmailTemplateManagement = () => {
     }
   };
 
-  const handleDeleteTemplate = async (templateId, templateName) => {
-    if (window.confirm(`Are you sure you want to delete template "${templateName}"?`)) {
-      try {
-        setError('');
-        await EmailTemplateService.deleteTemplate(templateId, currentUser, role);
-        await Promise.all([fetchTemplates(), fetchAssignments()]);
-      } catch (err) {
-        setError(err.message || 'Failed to delete template');
-        console.error('Error deleting template:', err);
-      }
+  const handleDeleteTemplate = (template) => {
+    setDeleteData({
+      id: template.id,
+      name: template.name,
+      type: template.template_type
+    });
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteTemplate = async () => {
+    if (!deleteData) return;
+    
+    try {
+      setError('');
+      await EmailTemplateService.deleteTemplate(deleteData.id, currentUser, role);
+      await Promise.all([fetchTemplates(), fetchAssignments()]);
+      setShowDeleteModal(false);
+      setDeleteData(null);
+    } catch (err) {
+      setError(err.message || 'Failed to delete template');
+      console.error('Error deleting template:', err);
     }
+  };
+
+  const cancelDeleteTemplate = () => {
+    setShowDeleteModal(false);
+    setDeleteData(null);
   };
 
   // Assignment management functions
@@ -243,24 +282,103 @@ const EmailTemplateManagement = () => {
     .map(a => a.purpose);
   const purposeChoices = allPurposeChoices.filter(choice => !assignedPurposes.includes(choice.value));
 
-  const handleSendWithTemplate = async () => {
+
+  const handleSendNewsletterConfirm = async () => {
     try {
+      setSendingNewsletter(true);
       setError('');
-      await EmailTemplateService.sendWithTemplate(
-        sendingTemplate.id, 
-        sendEmail, 
-        sendVariables, 
-        currentUser, 
-        role
-      );
+      
+      let emails = [];
+      
+      // Determine recipients based on email type
+      if (newsletterEmailType === 'subscriber') {
+        emails = [newsletterEmail];
+      } else if (newsletterEmailType === 'custom') {
+        emails = [newsletterCustomEmail];
+      } else if (newsletterEmailType === 'multiple') {
+        emails = selectedSubscribers;
+      } else if (newsletterEmailType === 'all') {
+        // Send to all active subscribers
+        const response = await NewsletterService.sendToAllSubscribers({
+          subject: newsletterSubject,
+          content: newsletterContent,
+          is_html: newsletterIsHtml,
+          template_id: selectedTemplate?.id,
+          template_variables: templateVariables
+        }, currentUser, role);
+        
+        if (response.success) {
+          resetNewsletterForm();
+          setShowSendModal(false);
+          alert(`Newsletter sent successfully to ${response.recipient_count} subscribers!`);
+          await fetchSubscribers();
+        }
+        return;
+      }
+      
+      if (emails.length === 0) {
+        setError('Please select at least one email address');
+        return;
+      }
+      
+      if (useTemplate && selectedTemplate) {
+        // Send using template
+        await EmailTemplateService.sendWithTemplate(
+          selectedTemplate.id,
+          emails[0], // For backward compatibility with single email
+          templateVariables,
+          currentUser,
+          role
+        );
+      } else {
+        // Send custom newsletter with new enhanced endpoint
+        const response = await NewsletterService.sendNewsletterToSubscriber(
+          emails, 
+          newsletterSubject, 
+          newsletterContent, 
+          newsletterIsHtml, 
+          sendToNonSubscribers,
+          currentUser, 
+          role
+        );
+        
+        if (response.success) {
+          let message = `Newsletter sent successfully to ${response.success_count} recipient(s)!`;
+          if (response.warning) {
+            message += `\n${response.warning}`;
+          }
+          if (response.failed_count > 0) {
+            message += `\nFailed to send to ${response.failed_count} recipient(s).`;
+          }
+          alert(message);
+        }
+      }
+      
+      resetNewsletterForm();
       setShowSendModal(false);
-      setSendingTemplate(null);
-      setSendEmail('');
-      setSendVariables({});
+      
+      // Refresh subscribers list
+      await fetchSubscribers();
     } catch (err) {
-      setError(err.message || 'Failed to send newsletter with template');
-      console.error('Error sending with template:', err);
+      setError(err.message || 'Failed to send newsletter');
+      console.error('Error sending newsletter:', err);
+    } finally {
+      setSendingNewsletter(false);
     }
+  };
+  
+  const resetNewsletterForm = () => {
+    setNewsletterEmail('');
+    setNewsletterCustomEmail('');
+    setNewsletterEmailType('subscriber');
+    setSelectedSubscribers([]);
+    setNewsletterSubject('');
+    setNewsletterContent('');
+    setSelectedTemplate(null);
+    setTemplateVariables({});
+    setUseTemplate(false);
+    setSendToNonSubscribers(false);
+    setSubscriberSearchTerm('');
   };
 
   const resetTemplateForm = () => {
@@ -325,10 +443,51 @@ const EmailTemplateManagement = () => {
     setShowEditModal(true);
   };
 
+  const fetchSubscribers = useCallback(async () => {
+    try {
+      const data = await NewsletterService.getSubscribers(true, currentUser, role);
+      setSubscribers(data.subscribers);
+      setSubscriberStats({
+        totalCount: data.total_count,
+        activeCount: data.active_count
+      });
+    } catch (err) {
+      console.error('Error fetching subscribers:', err);
+    }
+  }, [currentUser, role]);
+
   const openSendModal = (template) => {
     setSendingTemplate(template);
-    setSendEmail('');
-    setSendVariables({});
+    
+    // Set up enhanced newsletter modal with template pre-selected
+    setSelectedTemplate(template);
+    setUseTemplate(true);
+    setNewsletterSubject(template.subject);
+    setNewsletterContent(template.html_content);
+    setNewsletterIsHtml(true);
+    
+    // Pre-populate with environment-aware URLs
+    const frontendUrl = process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000';
+    setTemplateVariables({
+      website: frontendUrl,
+      shop_url: `${frontendUrl}/products`,
+      login_url: `${frontendUrl}/login`,
+      unsubscribe_url: `${frontendUrl}/unsubscribe`,
+      support_email: 'support@yourstore.com',
+      company: 'E-Store'
+    });
+    
+    // Reset other newsletter form state
+    setNewsletterEmail('');
+    setNewsletterCustomEmail('');
+    setNewsletterEmailType('subscriber');
+    setSelectedSubscribers([]);
+    setSendToNonSubscribers(false);
+    setSubscriberSearchTerm('');
+    
+    // Fetch subscribers for the enhanced modal
+    fetchSubscribers();
+    
     setShowSendModal(true);
   };
 
@@ -555,7 +714,7 @@ const EmailTemplateManagement = () => {
                               </svg>
                             </button>
                             <button
-                              onClick={() => handleDeleteTemplate(template.id, template.name)}
+                              onClick={() => handleDeleteTemplate(template)}
                               className="bg-red-600 text-white p-1.5 rounded hover:bg-red-700 transition-colors duration-200"
                               title="Delete Template"
                             >
@@ -881,20 +1040,23 @@ const EmailTemplateManagement = () => {
         )}
 
         {/* Send with Template Modal */}
+        {/* Enhanced Newsletter Modal */}
         {showSendModal && sendingTemplate && (
           <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
             <div className="relative top-10 mx-auto p-5 border w-11/12 max-w-2xl shadow-lg rounded-md bg-white">
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">Send Email with Template</h3>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Send Template: {sendingTemplate.name}
+                  </h3>
                   <button
                     onClick={() => {
                       setShowSendModal(false);
                       setSendingTemplate(null);
-                      setSendEmail('');
-                      setSendVariables({});
+                      resetNewsletterForm();
                     }}
                     className="text-gray-400 hover:text-gray-600"
+                    disabled={sendingNewsletter}
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -903,78 +1065,286 @@ const EmailTemplateManagement = () => {
                 </div>
                 
                 <div className="space-y-4">
+                  {/* Email Type Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Send To
+                    </label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="emailType"
+                          value="subscriber"
+                          checked={newsletterEmailType === 'subscriber'}
+                          onChange={(e) => setNewsletterEmailType(e.target.value)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                          disabled={sendingNewsletter}
+                        />
+                        <span className="ml-2 text-sm text-gray-700">Single Subscriber</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="emailType"
+                          value="custom"
+                          checked={newsletterEmailType === 'custom'}
+                          onChange={(e) => setNewsletterEmailType(e.target.value)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                          disabled={sendingNewsletter}
+                        />
+                        <span className="ml-2 text-sm text-gray-700">Custom Email</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="emailType"
+                          value="multiple"
+                          checked={newsletterEmailType === 'multiple'}
+                          onChange={(e) => setNewsletterEmailType(e.target.value)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                          disabled={sendingNewsletter}
+                        />
+                        <span className="ml-2 text-sm text-gray-700">Multiple Subscribers</span>
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="emailType"
+                          value="all"
+                          checked={newsletterEmailType === 'all'}
+                          onChange={(e) => setNewsletterEmailType(e.target.value)}
+                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                          disabled={sendingNewsletter}
+                        />
+                        <span className="ml-2 text-sm text-gray-700">All Subscribers</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Email Input based on type */}
+                  {newsletterEmailType !== 'all' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        {newsletterEmailType === 'subscriber' ? 'Select Subscriber' : 
+                         newsletterEmailType === 'custom' ? 'Email Address' : 
+                         'Select Multiple Subscribers'}
+                      </label>
+                      
+                      {newsletterEmailType === 'subscriber' ? (
+                        <select
+                          value={newsletterEmail}
+                          onChange={(e) => {
+                            setNewsletterEmail(e.target.value);
+                            // Auto-populate template variables when subscriber is selected
+                            if (e.target.value) {
+                              const selectedSubscriber = subscribers.find(sub => sub.email === e.target.value);
+                              if (selectedSubscriber) {
+                                const frontendUrl = process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000';
+                                const updatedVariables = {
+                                  ...templateVariables,
+                                  email: selectedSubscriber.email,
+                                  name: selectedSubscriber.preferences?.name || selectedSubscriber.email.split('@')[0] || 'Valued Customer',
+                                  company: 'E-Store',
+                                  website: frontendUrl,
+                                  shop_url: `${frontendUrl}/products`,
+                                  login_url: `${frontendUrl}/login`,
+                                  unsubscribe_url: `${frontendUrl}/unsubscribe?email=${selectedSubscriber.email}`,
+                                  support_email: 'support@yourstore.com'
+                                };
+                                setTemplateVariables(updatedVariables);
+                              }
+                            } else {
+                              // Reset variables when no subscriber is selected
+                              setTemplateVariables({});
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          required
+                          disabled={sendingNewsletter}
+                        >
+                          <option value="">Select a subscriber...</option>
+                          {subscribers.filter(sub => sub.is_active).map(subscriber => (
+                            <option key={subscriber.email} value={subscriber.email}>
+                              {subscriber.email} {subscriber.user_id ? `(${subscriber.user_id.slice(-4)})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : newsletterEmailType === 'custom' ? (
+                        <input
+                          type="email"
+                          value={newsletterCustomEmail}
+                          onChange={(e) => {
+                            setNewsletterCustomEmail(e.target.value);
+                            // Auto-populate template variables when custom email is entered
+                            if (e.target.value) {
+                              const frontendUrl = process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000';
+                              const updatedVariables = {
+                                ...templateVariables,
+                                email: e.target.value,
+                                name: e.target.value.split('@')[0] || 'Valued Customer',
+                                company: 'E-Store',
+                                website: frontendUrl,
+                                shop_url: `${frontendUrl}/products`,
+                                login_url: `${frontendUrl}/login`,
+                                unsubscribe_url: `${frontendUrl}/unsubscribe?email=${e.target.value}`,
+                                support_email: 'support@yourstore.com'
+                              };
+                              setTemplateVariables(updatedVariables);
+                            } else {
+                              // Reset variables when email is cleared
+                              setTemplateVariables({});
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter email address"
+                          required
+                          disabled={sendingNewsletter}
+                        />
+                      ) : (
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={subscriberSearchTerm}
+                            onChange={(e) => setSubscriberSearchTerm(e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Search subscribers..."
+                            disabled={sendingNewsletter}
+                          />
+                          <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-md">
+                            {subscribers
+                              .filter(sub => sub.is_active && sub.email.toLowerCase().includes(subscriberSearchTerm.toLowerCase()))
+                              .map(subscriber => (
+                                <label key={subscriber.email} className="flex items-center p-2 hover:bg-gray-50">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedSubscribers.includes(subscriber.email)}
+                                    onChange={(e) => {
+                                      let newSelectedSubscribers;
+                                      if (e.target.checked) {
+                                        newSelectedSubscribers = [...selectedSubscribers, subscriber.email];
+                                      } else {
+                                        newSelectedSubscribers = selectedSubscribers.filter(email => email !== subscriber.email);
+                                      }
+                                      setSelectedSubscribers(newSelectedSubscribers);
+                                      
+                                      // Auto-populate template variables when subscribers are selected
+                                      if (newSelectedSubscribers.length > 0) {
+                                        const frontendUrl = process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000';
+                                        const updatedVariables = {
+                                          ...templateVariables,
+                                          email: newSelectedSubscribers[0], // Use first selected email
+                                          name: 'Multiple Recipients', // Generic name for multiple recipients
+                                          company: 'E-Store',
+                                          website: frontendUrl,
+                                          shop_url: `${frontendUrl}/products`,
+                                          login_url: `${frontendUrl}/login`,
+                                          unsubscribe_url: `${frontendUrl}/unsubscribe`,
+                                          support_email: 'support@yourstore.com'
+                                        };
+                                        setTemplateVariables(updatedVariables);
+                                      } else {
+                                        // Reset variables when no subscribers are selected
+                                        setTemplateVariables({});
+                                      }
+                                    }}
+                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    disabled={sendingNewsletter}
+                                  />
+                                  <span className="ml-2 text-sm text-gray-700">
+                                    {subscriber.email} {subscriber.user_id ? `(${subscriber.user_id.slice(-4)})` : ''}
+                                  </span>
+                                </label>
+                              ))}
+                          </div>
+                          {selectedSubscribers.length > 0 && (
+                            <div className="text-sm text-gray-600">
+                              Selected: {selectedSubscribers.length} subscriber(s)
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {newsletterEmailType === 'all' && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                      <p className="text-sm text-blue-800">
+                        <strong>All Active Subscribers:</strong> This template will be sent to all {subscriberStats.activeCount} active subscribers.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Template Variables */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Template Variables
+                      {Object.keys(templateVariables).length > 0 && (
+                        <span className="ml-2 text-xs text-green-600 font-medium">
+                          ✓ Auto-populated from selected recipient
+                        </span>
+                      )}
+                    </label>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Fill in the variables used in this template (e.g., {'{name}'}, {'{company}'}, {'{website}'}, {'{shop_url}'})
+                      {Object.keys(templateVariables).length > 0 && (
+                        <span className="text-green-600"> - Variables have been auto-populated with environment-aware URLs</span>
+                      )}
+                    </p>
+                    <div className="space-y-2">
+                      {Object.keys(sendingTemplate.variables || {}).map(key => (
+                        <div key={key} className="flex space-x-2">
+                          <span className="px-3 py-2 bg-gray-100 rounded text-sm font-mono min-w-0 flex-shrink-0">{'{' + key + '}'}</span>
+                          <input
+                            type="text"
+                            value={templateVariables[key] || ''}
+                            onChange={(e) => setTemplateVariables({...templateVariables, [key]: e.target.value})}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder={`Value for ${key}`}
+                            disabled={sendingNewsletter}
+                          />
+                        </div>
+                      ))}
+                      {Object.keys(sendingTemplate.variables || {}).length === 0 && (
+                        <p className="text-sm text-gray-500 italic">No variables defined for this template</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Send to non-subscribers option */}
+                  {(newsletterEmailType === 'custom' || newsletterEmailType === 'multiple') && (
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="send-to-non-subscribers"
+                        checked={sendToNonSubscribers}
+                        onChange={(e) => setSendToNonSubscribers(e.target.checked)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        disabled={sendingNewsletter}
+                      />
+                      <label htmlFor="send-to-non-subscribers" className="ml-2 block text-sm text-gray-700">
+                        Allow sending to non-subscribers
+                      </label>
+                    </div>
+                  )}
+
                   <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
                     <p className="text-sm text-blue-800">
                       <strong>Template:</strong> {sendingTemplate.name} ({templateTypes.find(t => t.value === sendingTemplate.template_type)?.label})
                     </p>
                     <p className="text-sm text-blue-800">
-                      <strong>Subject:</strong> {sendingTemplate.subject}
+                      <strong>Subject:</strong> {newsletterSubject}
                     </p>
-                  </div>
-
-                  <div>
-                    <label htmlFor="send-email" className="block text-sm font-medium text-gray-700 mb-1">
-                      Recipient Email *
-                    </label>
-                    <input
-                      type="email"
-                      id="send-email"
-                      value={sendEmail}
-                      onChange={(e) => setSendEmail(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter recipient email address"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Template Variables (Optional)
-                    </label>
-                    <p className="text-xs text-gray-500 mb-2">
-                      Use variables like {'{name}'}, {'{company}'}, etc. in your template content
+                    <p className="text-sm text-blue-800">
+                      <strong>Recipients:</strong>{' '}
+                      {newsletterEmailType === 'subscriber' && newsletterEmail && <span>{newsletterEmail}</span>}
+                      {newsletterEmailType === 'custom' && newsletterCustomEmail && <span>{newsletterCustomEmail}</span>}
+                      {newsletterEmailType === 'multiple' && selectedSubscribers.length > 0 && (
+                        <span>{selectedSubscribers.length} selected subscriber(s)</span>
+                      )}
+                      {newsletterEmailType === 'all' && <span>all {subscriberStats.activeCount} active subscribers</span>}
+                      {(!newsletterEmail && !newsletterCustomEmail && selectedSubscribers.length === 0 && newsletterEmailType !== 'all') && 'selected recipients'}
                     </p>
-                    <div className="space-y-2">
-                      <div className="flex space-x-2">
-                        <input
-                          type="text"
-                          placeholder="Variable name (e.g., name)"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              const input = e.target;
-                              const name = input.value.trim();
-                              if (name) {
-                                setSendVariables({...sendVariables, [name]: ''});
-                                input.value = '';
-                              }
-                            }
-                          }}
-                        />
-                        <span className="text-sm text-gray-500 self-center">Press Enter to add</span>
-                      </div>
-                      {Object.keys(sendVariables).map(key => (
-                        <div key={key} className="flex space-x-2">
-                          <span className="px-3 py-2 bg-gray-100 rounded text-sm font-mono">{'{' + key + '}'}</span>
-                          <input
-                            type="text"
-                            value={sendVariables[key]}
-                            onChange={(e) => setSendVariables({...sendVariables, [key]: e.target.value})}
-                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder={`Value for ${key}`}
-                          />
-                          <button
-                            onClick={() => {
-                              const newVars = {...sendVariables};
-                              delete newVars[key];
-                              setSendVariables(newVars);
-                            }}
-                            className="px-3 py-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors duration-200"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
                   </div>
                 </div>
 
@@ -983,19 +1353,22 @@ const EmailTemplateManagement = () => {
                     onClick={() => {
                       setShowSendModal(false);
                       setSendingTemplate(null);
-                      setSendEmail('');
-                      setSendVariables({});
+                      resetNewsletterForm();
                     }}
                     className="bg-gray-300 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-400 transition-colors duration-200"
+                    disabled={sendingNewsletter}
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={handleSendWithTemplate}
+                    onClick={handleSendNewsletterConfirm}
                     className="bg-green-600 text-white px-4 py-2 rounded text-sm hover:bg-green-700 transition-colors duration-200 disabled:opacity-50"
-                    disabled={!sendEmail.trim()}
+                    disabled={sendingNewsletter || 
+                      (newsletterEmailType === 'subscriber' && !newsletterEmail) ||
+                      (newsletterEmailType === 'custom' && !newsletterCustomEmail) ||
+                      (newsletterEmailType === 'multiple' && selectedSubscribers.length === 0)}
                   >
-                    Send Newsletter
+                    {sendingNewsletter ? 'Sending...' : 'Send Template'}
                   </button>
                 </div>
               </div>
@@ -1286,6 +1659,48 @@ const EmailTemplateManagement = () => {
                     className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition-colors duration-200"
                   >
                     Unassign
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Template Confirmation Modal */}
+        {showDeleteModal && deleteData && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" style={{zIndex: 10000}}>
+            <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-md shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                
+                <div className="text-center">
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    Delete Template?
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Are you sure you want to delete template <strong>"{deleteData.name}"</strong>?
+                  </p>
+                  <p className="text-xs text-gray-500 mb-6">
+                    This action cannot be undone. The template will be permanently removed from the system.
+                  </p>
+                </div>
+
+                <div className="flex space-x-3 justify-end">
+                  <button
+                    onClick={cancelDeleteTemplate}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmDeleteTemplate}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition-colors duration-200"
+                  >
+                    Delete
                   </button>
                 </div>
               </div>

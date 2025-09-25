@@ -193,7 +193,8 @@ class NewsletterSubscriptionSerializer(serializers.ModelSerializer):
                 existing_subscription.preferences = validated_data.get('preferences', {})
                 existing_subscription.save()
                 return existing_subscription
-        
+        else:
+            # Create new subscription
             return super().create(validated_data)
 
 
