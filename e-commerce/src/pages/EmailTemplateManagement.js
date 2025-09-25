@@ -6,6 +6,8 @@ import EmailTemplateService from '../services/emailTemplateService';
 import TemplateAssignmentService from '../services/templateAssignmentService';
 import NewsletterService from '../services/newsletterService';
 import EnhancedTextEditor from '../components/EnhancedTextEditor';
+import SuccessDialog from '../components/SuccessDialog';
+import ErrorDialog from '../components/ErrorDialog';
 
 const EmailTemplateManagement = () => {
   const { currentUser, role, loading: authLoading } = useAuth();
@@ -30,6 +32,10 @@ const EmailTemplateManagement = () => {
   const [unassignSuccess, setUnassignSuccess] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteData, setDeleteData] = useState(null);
+  
+  // Dialog states
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
+  const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [sendingTemplate, setSendingTemplate] = useState(null);
   
@@ -133,8 +139,8 @@ const EmailTemplateManagement = () => {
     try {
       setError('');
       await EmailTemplateService.createTemplate(templateForm, currentUser, role);
-        setShowCreateModal(false);
-        resetTemplateForm();
+      setShowCreateModal(false);
+      resetTemplateForm();
         await Promise.all([fetchTemplates(), fetchAssignments()]);
     } catch (err) {
       setError(err.message || 'Failed to create template');
@@ -147,8 +153,8 @@ const EmailTemplateManagement = () => {
       setError('');
       await EmailTemplateService.updateTemplate(editingTemplate.id, templateForm, currentUser, role);
       setShowEditModal(false);
-        setEditingTemplate(null);
-        resetTemplateForm();
+      setEditingTemplate(null);
+      resetTemplateForm();
         await Promise.all([fetchTemplates(), fetchAssignments()]);
     } catch (err) {
       setError(err.message || 'Failed to update template');
@@ -168,16 +174,16 @@ const EmailTemplateManagement = () => {
   const confirmDeleteTemplate = async () => {
     if (!deleteData) return;
     
-    try {
-      setError('');
+      try {
+        setError('');
       await EmailTemplateService.deleteTemplate(deleteData.id, currentUser, role);
       await Promise.all([fetchTemplates(), fetchAssignments()]);
       setShowDeleteModal(false);
       setDeleteData(null);
-    } catch (err) {
-      setError(err.message || 'Failed to delete template');
-      console.error('Error deleting template:', err);
-    }
+      } catch (err) {
+        setError(err.message || 'Failed to delete template');
+        console.error('Error deleting template:', err);
+      }
   };
 
   const cancelDeleteTemplate = () => {
@@ -321,37 +327,33 @@ const EmailTemplateManagement = () => {
         return;
       }
       
-      if (useTemplate && selectedTemplate) {
-        // Send using template
-        await EmailTemplateService.sendWithTemplate(
-          selectedTemplate.id,
-          emails[0], // For backward compatibility with single email
-          templateVariables,
-          currentUser,
-          role
-        );
-      } else {
-        // Send custom newsletter with new enhanced endpoint
-        const response = await NewsletterService.sendNewsletterToSubscriber(
-          emails, 
-          newsletterSubject, 
-          newsletterContent, 
-          newsletterIsHtml, 
-          sendToNonSubscribers,
-          currentUser, 
-          role
-        );
-        
-        if (response.success) {
-          let message = `Newsletter sent successfully to ${response.success_count} recipient(s)!`;
-          if (response.warning) {
-            message += `\n${response.warning}`;
-          }
-          if (response.failed_count > 0) {
-            message += `\nFailed to send to ${response.failed_count} recipient(s).`;
-          }
-          alert(message);
+      // Always use the enhanced newsletter endpoint that supports templates and non-subscribers
+      const response = await NewsletterService.sendNewsletterToSubscriber(
+        emails, 
+        newsletterSubject, 
+        newsletterContent, 
+        newsletterIsHtml, 
+        sendToNonSubscribers,
+        currentUser, 
+        role,
+        useTemplate && selectedTemplate ? selectedTemplate.id : null,
+        templateVariables
+      );
+      
+      if (response.success) {
+        let message = `Newsletter sent successfully to ${response.success_count} recipient(s)!`;
+        if (response.warning) {
+          message += ` ${response.warning}`;
         }
+        if (response.failed_count > 0) {
+          message += ` Failed to send to ${response.failed_count} recipient(s).`;
+        }
+        
+        setSuccessDialog({
+          isOpen: true,
+          title: 'Newsletter Sent Successfully! 📧',
+          message: message
+        });
       }
       
       resetNewsletterForm();
@@ -360,8 +362,13 @@ const EmailTemplateManagement = () => {
       // Refresh subscribers list
       await fetchSubscribers();
     } catch (err) {
-      setError(err.message || 'Failed to send newsletter');
       console.error('Error sending newsletter:', err);
+      setErrorDialog({
+        isOpen: true,
+        title: 'Failed to Send Newsletter',
+        message: err.message || 'Failed to send newsletter. Please try again.',
+        details: err.message
+      });
     } finally {
       setSendingNewsletter(false);
     }
@@ -396,10 +403,41 @@ const EmailTemplateManagement = () => {
   };
 
   const handleTextContentChange = (plainText, htmlContent) => {
+    let finalHtmlContent = htmlContent;
+    
+    // For existing templates with table layout, preserve the original HTML content
+    // but sync variable formats from plain text to HTML
+    if (editingTemplate && editingTemplate.html_content && editingTemplate.html_content.includes('<table')) {
+      finalHtmlContent = editingTemplate.html_content;
+      
+      // Extract variables from plain text and update HTML content to match
+      const plainTextVariables = plainText.match(/\{[^}]+\}/g) || [];
+      const uniqueVariables = [...new Set(plainTextVariables)];
+      
+      // Update HTML content to use the same variable format as plain text
+      uniqueVariables.forEach(variable => {
+        // Find all possible formats of this variable in HTML
+        const variableName = variable.replace(/{|}/g, '');
+        const formats = [
+          `{{{{${variableName}}}}}`,     // 4 brackets: {{{{company}}}}
+          `{{${variableName}}}}}`,       // 3 brackets: {{{company}}}
+          `{{${variableName}}}`,         // 2 brackets: {{name}}
+          `{${variableName}}`,           // 1 bracket: {name}
+        ];
+        
+        // Replace all formats with the plain text format
+        formats.forEach(format => {
+          if (finalHtmlContent.includes(format)) {
+            finalHtmlContent = finalHtmlContent.replaceAll(format, variable);
+          }
+        });
+      });
+    }
+    
     setTemplateForm({
       ...templateForm,
       plain_text_content: plainText,
-      html_content: htmlContent
+      html_content: finalHtmlContent
     });
   };
 
@@ -433,6 +471,7 @@ const EmailTemplateManagement = () => {
       name: template.name,
       template_type: template.template_type,
       subject: template.subject,
+      // Preserve the original HTML content, especially for templates with table layouts
       html_content: template.html_content,
       plain_text_content: plainTextContent,
       description: template.description || '',
@@ -546,12 +585,12 @@ const EmailTemplateManagement = () => {
                     </span>
                   )}
                 </button>
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200"
-                >
-                  Create New Template
-                </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200"
+              >
+                Create New Template
+              </button>
               </div>
             </div>
 
@@ -655,12 +694,12 @@ const EmailTemplateManagement = () => {
                       <tr key={template.id} className="hover:bg-gray-50">
                         <td className="px-3 py-2 text-sm font-medium text-gray-900">
                           <div className="truncate">
-                            {template.name}
-                            {template.is_default && (
+                          {template.name}
+                          {template.is_default && (
                               <span className="ml-1 inline-flex px-1 py-0.5 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
                                 D
-                              </span>
-                            )}
+                            </span>
+                          )}
                           </div>
                         </td>
                         <td className="px-3 py-2 text-xs text-gray-500">
@@ -1072,7 +1111,7 @@ const EmailTemplateManagement = () => {
                     </label>
                     <div className="grid grid-cols-2 gap-4">
                       <label className="flex items-center">
-                        <input
+                    <input
                           type="radio"
                           name="emailType"
                           value="subscriber"
@@ -1124,12 +1163,12 @@ const EmailTemplateManagement = () => {
 
                   {/* Email Input based on type */}
                   {newsletterEmailType !== 'all' && (
-                    <div>
+                  <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         {newsletterEmailType === 'subscriber' ? 'Select Subscriber' : 
                          newsletterEmailType === 'custom' ? 'Email Address' : 
                          'Select Multiple Subscribers'}
-                      </label>
+                    </label>
                       
                       {newsletterEmailType === 'subscriber' ? (
                         <select
@@ -1202,9 +1241,9 @@ const EmailTemplateManagement = () => {
                           disabled={sendingNewsletter}
                         />
                       ) : (
-                        <div className="space-y-2">
-                          <input
-                            type="text"
+                    <div className="space-y-2">
+                        <input
+                          type="text"
                             value={subscriberSearchTerm}
                             onChange={(e) => setSubscriberSearchTerm(e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -1256,7 +1295,7 @@ const EmailTemplateManagement = () => {
                                   </span>
                                 </label>
                               ))}
-                          </div>
+                      </div>
                           {selectedSubscribers.length > 0 && (
                             <div className="text-sm text-gray-600">
                               Selected: {selectedSubscribers.length} subscriber(s)
@@ -1349,8 +1388,8 @@ const EmailTemplateManagement = () => {
                 </div>
 
                 <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    onClick={() => {
+                          <button
+                            onClick={() => {
                       setShowSendModal(false);
                       setSendingTemplate(null);
                       resetNewsletterForm();
@@ -1369,8 +1408,8 @@ const EmailTemplateManagement = () => {
                       (newsletterEmailType === 'multiple' && selectedSubscribers.length === 0)}
                   >
                     {sendingNewsletter ? 'Sending...' : 'Send Template'}
-                  </button>
-                </div>
+                          </button>
+                        </div>
               </div>
             </div>
           </div>
@@ -1515,7 +1554,7 @@ const EmailTemplateManagement = () => {
                           ))}
                         </tbody>
                       </table>
-                      </div>
+                    </div>
                     )}
                   </div>
 
@@ -1633,7 +1672,7 @@ const EmailTemplateManagement = () => {
                   <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
-                </div>
+    </div>
                 
                 <div className="text-center">
                   <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -1710,6 +1749,23 @@ const EmailTemplateManagement = () => {
 
       </main>
       <Footer />
+
+      {/* Success Dialog */}
+      <SuccessDialog
+        isOpen={successDialog.isOpen}
+        onClose={() => setSuccessDialog({ isOpen: false, title: '', message: '' })}
+        title={successDialog.title}
+        message={successDialog.message}
+      />
+
+      {/* Error Dialog */}
+      <ErrorDialog
+        isOpen={errorDialog.isOpen}
+        onClose={() => setErrorDialog({ isOpen: false, title: '', message: '', details: '' })}
+        title={errorDialog.title}
+        message={errorDialog.message}
+        details={errorDialog.details}
+      />
     </>
   );
 };

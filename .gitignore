@@ -2,3 +2,15 @@ backend/backend/.env
 e-commerce/.env
 backend/.env
 backend/update_templates_modern_layout.py
+welcome_template_table_test.html
+.gitignore
+welcome_template_exact.html
+.gitignore
+welcome_template_inline_test.html
+.gitignore
+welcome_template_actual_sent.html
+.gitignore
+.gitignore
+email_comparison.html
+.gitignore
+actual_email_template.html

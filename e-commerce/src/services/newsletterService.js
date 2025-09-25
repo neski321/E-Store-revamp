@@ -194,9 +194,11 @@ class NewsletterService {
    * @param {boolean} sendToNonSubscribers - Whether to allow sending to non-subscribers
    * @param {Object} currentUser - Current user object from AuthContext
    * @param {string} role - User role from AuthContext
+   * @param {number} templateId - Optional template ID
+   * @param {Object} templateVariables - Optional template variables
    * @returns {Promise<Object>} Response data
    */
-  static async sendNewsletterToSubscriber(emails, subject, content, isHtml = true, sendToNonSubscribers = false, currentUser = null, role = 'user') {
+  static async sendNewsletterToSubscriber(emails, subject, content, isHtml = true, sendToNonSubscribers = false, currentUser = null, role = 'user', templateId = null, templateVariables = {}) {
     try {
       // Handle backward compatibility - single email as string
       const emailList = Array.isArray(emails) ? emails : [emails];
@@ -213,7 +215,9 @@ class NewsletterService {
           subject: subject.trim(),
           content: content.trim(),
           is_html: isHtml,
-          send_to_non_subscribers: sendToNonSubscribers
+          send_to_non_subscribers: sendToNonSubscribers,
+          template_id: templateId,
+          template_variables: templateVariables
         }),
       });
 

@@ -6,6 +6,8 @@ import Footer from '../components/Footer';
 import NewsletterService from '../services/newsletterService';
 import EmailTemplateService from '../services/emailTemplateService';
 import EnhancedTextEditor from '../components/EnhancedTextEditor';
+import SuccessDialog from '../components/SuccessDialog';
+import ErrorDialog from '../components/ErrorDialog';
 
 const NewsletterManagement = () => {
   const { currentUser, role, loading: authLoading } = useAuth();
@@ -36,6 +38,10 @@ const NewsletterManagement = () => {
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [showCreateTemplateModal, setShowCreateTemplateModal] = useState(false);
+  
+  // Dialog states
+  const [successDialog, setSuccessDialog] = useState({ isOpen: false, title: '', message: '' });
+  const [errorDialog, setErrorDialog] = useState({ isOpen: false, title: '', message: '', details: '' });
   const [templateVariables, setTemplateVariables] = useState({});
   const [useTemplate, setUseTemplate] = useState(false);
   
@@ -211,37 +217,33 @@ const NewsletterManagement = () => {
         return;
       }
       
-      if (useTemplate && selectedTemplate) {
-        // Send using template
-        await EmailTemplateService.sendWithTemplate(
-          selectedTemplate.id,
-          emails[0], // For backward compatibility with single email
-          templateVariables,
-          currentUser,
-          role
-        );
-      } else {
-        // Send custom newsletter with new enhanced endpoint
-        const response = await NewsletterService.sendNewsletterToSubscriber(
-          emails, 
-          newsletterSubject, 
-          newsletterContent, 
-          newsletterIsHtml, 
-          sendToNonSubscribers,
-          currentUser, 
-          role
-        );
-        
-        if (response.success) {
-          let message = `Newsletter sent successfully to ${response.success_count} recipient(s)!`;
-          if (response.warning) {
-            message += `\n${response.warning}`;
-          }
-          if (response.failed_count > 0) {
-            message += `\nFailed to send to ${response.failed_count} recipient(s).`;
-          }
-          alert(message);
+      // Always use the enhanced newsletter endpoint that supports templates and non-subscribers
+      const response = await NewsletterService.sendNewsletterToSubscriber(
+        emails, 
+        newsletterSubject, 
+        newsletterContent, 
+        newsletterIsHtml, 
+        sendToNonSubscribers,
+        currentUser, 
+        role,
+        useTemplate && selectedTemplate ? selectedTemplate.id : null,
+        templateVariables
+      );
+      
+      if (response.success) {
+        let message = `Newsletter sent successfully to ${response.success_count} recipient(s)!`;
+        if (response.warning) {
+          message += ` ${response.warning}`;
         }
+        if (response.failed_count > 0) {
+          message += ` Failed to send to ${response.failed_count} recipient(s).`;
+        }
+        
+        setSuccessDialog({
+          isOpen: true,
+          title: 'Newsletter Sent Successfully! 📧',
+          message: message
+        });
       }
       
       resetNewsletterForm();
@@ -250,8 +252,13 @@ const NewsletterManagement = () => {
       // Refresh subscribers list
       await fetchSubscribers();
     } catch (err) {
-      setError(err.message || 'Failed to send newsletter');
       console.error('Error sending newsletter:', err);
+      setErrorDialog({
+        isOpen: true,
+        title: 'Failed to Send Newsletter',
+        message: err.message || 'Failed to send newsletter. Please try again.',
+        details: err.message
+      });
     } finally {
       setSendingNewsletter(false);
     }
@@ -312,10 +319,41 @@ const NewsletterManagement = () => {
   };
 
   const handleTextContentChange = (plainText, htmlContent) => {
+    let finalHtmlContent = htmlContent;
+    
+    // For existing templates with table layout, preserve the original HTML content
+    // but sync variable formats from plain text to HTML
+    if (selectedTemplate && selectedTemplate.html_content && selectedTemplate.html_content.includes('<table')) {
+      finalHtmlContent = selectedTemplate.html_content;
+      
+      // Extract variables from plain text and update HTML content to match
+      const plainTextVariables = plainText.match(/\{[^}]+\}/g) || [];
+      const uniqueVariables = [...new Set(plainTextVariables)];
+      
+      // Update HTML content to use the same variable format as plain text
+      uniqueVariables.forEach(variable => {
+        // Find all possible formats of this variable in HTML
+        const variableName = variable.replace(/{|}/g, '');
+        const formats = [
+          `{{{{${variableName}}}}}`,     // 4 brackets: {{{{company}}}}
+          `{{${variableName}}}}}`,       // 3 brackets: {{{company}}}
+          `{{${variableName}}}`,         // 2 brackets: {{name}}
+          `{${variableName}}`,           // 1 bracket: {name}
+        ];
+        
+        // Replace all formats with the plain text format
+        formats.forEach(format => {
+          if (finalHtmlContent.includes(format)) {
+            finalHtmlContent = finalHtmlContent.replaceAll(format, variable);
+          }
+        });
+      });
+    }
+    
     setTemplateForm({
       ...templateForm,
       plain_text_content: plainText,
-      html_content: htmlContent
+      html_content: finalHtmlContent
     });
   };
 
@@ -1174,6 +1212,23 @@ const NewsletterManagement = () => {
       )}
       </main>
       <Footer />
+
+      {/* Success Dialog */}
+      <SuccessDialog
+        isOpen={successDialog.isOpen}
+        onClose={() => setSuccessDialog({ isOpen: false, title: '', message: '' })}
+        title={successDialog.title}
+        message={successDialog.message}
+      />
+
+      {/* Error Dialog */}
+      <ErrorDialog
+        isOpen={errorDialog.isOpen}
+        onClose={() => setErrorDialog({ isOpen: false, title: '', message: '', details: '' })}
+        title={errorDialog.title}
+        message={errorDialog.message}
+        details={errorDialog.details}
+      />
     </>
   );
 };
