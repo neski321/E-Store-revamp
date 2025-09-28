@@ -1,6 +1,11 @@
 # backend/middleware.py
 from django.http import JsonResponse
+from django.core.exceptions import PermissionDenied
+from django.db import DatabaseError
 from backend.firebase import db, auth
+import logging
+
+logger = logging.getLogger(__name__)
 
 def check_user_role(get_response):
     def middleware(request):
@@ -29,3 +34,38 @@ def get_user_role_from_db(uid):
     except Exception as e:
         print(f"Error retrieving user role: {e}")
         return 'user'  # Default to 'user' in case of error
+
+def json_error_handler(get_response):
+    """
+    Middleware to ensure API endpoints always return JSON responses,
+    even when errors occur in production.
+    """
+    def middleware(request):
+        # Only apply to API endpoints
+        if request.path.startswith('/api/'):
+            try:
+                response = get_response(request)
+                return response
+            except Exception as e:
+                logger.error(f"API Error for {request.path}: {str(e)}", exc_info=True)
+                
+                # Return JSON error response instead of HTML
+                if isinstance(e, PermissionDenied):
+                    return JsonResponse({
+                        'error': 'Permission denied',
+                        'message': 'You do not have permission to perform this action'
+                    }, status=403)
+                elif isinstance(e, DatabaseError):
+                    return JsonResponse({
+                        'error': 'Database error',
+                        'message': 'A database error occurred. Please try again later.'
+                    }, status=500)
+                else:
+                    return JsonResponse({
+                        'error': 'Internal server error',
+                        'message': 'An unexpected error occurred. Please try again later.'
+                    }, status=500)
+        else:
+            return get_response(request)
+    
+    return middleware

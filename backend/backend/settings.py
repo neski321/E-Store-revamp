@@ -96,6 +96,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     'backend.middleware.check_user_role',
+    'backend.middleware.json_error_handler',
 ]
 
 
