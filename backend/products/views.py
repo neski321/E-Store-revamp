@@ -1244,7 +1244,16 @@ def send_email_with_template(request):
             }, status=status.HTTP_404_NOT_FOUND)
 
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Log the error for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in send_email_with_template: {str(e)}", exc_info=True)
+        
+        # Return a safe JSON error response
+        return Response({
+            'error': 'Failed to send email with template',
+            'message': 'An unexpected error occurred while sending the email. Please try again later.'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
 def unsubscribe_newsletter(request):
@@ -1363,6 +1372,9 @@ def admin_unsubscribe_newsletter(request):
 def send_newsletter_to_subscriber(request):
     """Send newsletter to specific subscriber or multiple subscribers (admin only)"""
     try:
+        # Ensure we always return JSON, even for unexpected errors
+        import logging
+        logger = logging.getLogger(__name__)
         # Check if user is admin
         user_role = request.headers.get('X-User-Role', 'user')
         if user_role != 'admin':
@@ -1520,7 +1532,14 @@ def send_newsletter_to_subscriber(request):
         return Response(response_data, status=status.HTTP_200_OK)
 
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Log the error for debugging
+        logger.error(f"Error in send_newsletter_to_subscriber: {str(e)}", exc_info=True)
+        
+        # Return a safe JSON error response
+        return Response({
+            'error': 'Failed to send newsletter',
+            'message': 'An unexpected error occurred while sending the newsletter. Please try again later.'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
 def send_newsletter_to_all_subscribers(request):
